@@ -1,0 +1,62 @@
+{
+  "name": "nestjs-ai",
+  "version": "0.1.0",
+  "description": "NestJS module for AI providers — OpenAI, Anthropic, Ollama. Injectable service with Zod structured output and smart retry.",
+  "author": "Yaroslav Solodovnikov",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "nestjs", "openai", "anthropic", "ollama", "ai", "llm", "zod",
+    "structured-output", "typescript", "nodejs", "nestjs-module",
+    "chatgpt", "claude", "injectable"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yar-solodovnikov/nestjs-ai.git"
+  },
+  "engines": { "node": ">=18" },
+  "sideEffects": false,
+  "dependencies": {
+    "jsonrepair": "^3.0.0"
+  },
+  "peerDependencies": {
+    "@nestjs/common": ">=10.0.0",
+    "@nestjs/core": ">=10.0.0",
+    "zod": ">=3.0.0",
+    "openai": ">=4.0.0",
+    "@anthropic-ai/sdk": ">=0.20.0"
+  },
+  "peerDependenciesMeta": {
+    "openai": { "optional": true },
+    "@anthropic-ai/sdk": { "optional": true }
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "^0.96.0",
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@types/node": "^22.0.0",
+    "openai": "^4.0.0",
+    "reflect-metadata": "^0.2.2",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.0.0",
+    "zod": "^3.0.0"
+  }
+}
