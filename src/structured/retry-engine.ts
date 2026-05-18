@@ -13,6 +13,7 @@ export class AiError extends Error {
   ) {
     super(message)
     this.name = 'AiError'
+    Object.setPrototypeOf(this, AiError.prototype)
   }
 }
 
@@ -26,7 +27,7 @@ export interface RetryOptions<T extends ZodTypeAny> {
   logger?: AiLogger
 }
 
-const DEFAULT_RETRIES = 3
+export const DEFAULT_RETRIES = 3
 const MAX_RAW_IN_PROMPT = 500
 
 export async function runWithRetry<T extends ZodTypeAny>(

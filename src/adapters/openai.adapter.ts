@@ -13,7 +13,7 @@ export interface OpenAiAdapterOptions {
  * Pass the OpenAI client instance, not the class.
  */
 export function openaiAdapter(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-module-boundary-types
   client: any,
   defaults: OpenAiAdapterOptions = {},
 ): IAiAdapter {

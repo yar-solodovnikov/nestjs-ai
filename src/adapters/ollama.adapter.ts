@@ -1,10 +1,9 @@
+import type { OpenAI as OpenAIClass } from 'openai'
 import { openaiAdapter, type OpenAiAdapterOptions } from './openai.adapter'
 import type { IAiAdapter } from './adapter.interface'
 
 const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434/v1'
 const DEFAULT_OLLAMA_MODEL = 'llama3.2'
-export const DEFAULT_OLLAMA_RETRIES = 5
-
 export interface OllamaAdapterOptions extends OpenAiAdapterOptions {
   baseUrl?: string
   model?: string
@@ -20,7 +19,7 @@ export function ollamaAdapter(options: OllamaAdapterOptions = {}): IAiAdapter {
 
   async function getAdapter(): Promise<IAiAdapter> {
     if (cachedAdapter) return cachedAdapter
-    let OpenAI: typeof import('openai').OpenAI
+    let OpenAI: typeof OpenAIClass
     try {
       const mod = await import('openai')
       OpenAI = mod.OpenAI

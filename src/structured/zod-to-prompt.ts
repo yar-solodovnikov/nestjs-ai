@@ -12,8 +12,8 @@ function indent(depth: number): string {
   return '  '.repeat(depth)
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function describeSchema(schema: ZodTypeAny, depth: number): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const def = (schema as any)._def
   const typeName: string = def?.typeName ?? ''
 
@@ -36,6 +36,11 @@ function describeSchema(schema: ZodTypeAny, depth: number): string {
   if (typeName === 'ZodNumber') return 'number'
   if (typeName === 'ZodBoolean') return 'boolean'
   if (typeName === 'ZodNull') return 'null'
+  if (typeName === 'ZodLiteral') return JSON.stringify(def.value)
+  if (typeName === 'ZodDefault') return describeSchema(def.innerType, depth)
+  if (typeName === 'ZodUnion') {
+    return (def.options as ZodTypeAny[]).map(o => describeSchema(o, depth)).join(' | ')
+  }
 
   return 'unknown'
 }

@@ -15,7 +15,7 @@ export interface AnthropicAdapterOptions {
  * Pass the Anthropic client instance, not the class.
  */
 export function anthropicAdapter(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-module-boundary-types
   client: any,
   defaults: AnthropicAdapterOptions = {},
 ): IAiAdapter {

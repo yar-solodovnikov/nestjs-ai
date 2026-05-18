@@ -17,7 +17,7 @@ export interface GeminiAdapterOptions {
  * geminiAdapter(new GoogleGenerativeAI(process.env.GEMINI_API_KEY))
  */
 export function geminiAdapter(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-module-boundary-types
   client: any,
   defaults: GeminiAdapterOptions = {},
 ): IAiAdapter {

@@ -18,10 +18,12 @@ export interface AiLogger {
   onRetry?(attempt: number, error: Error): void
 }
 
+const PROMPT_PREVIEW_LENGTH = 80
+
 /** Built-in logger that prints to console. Pass to AiModuleOptions.logger. */
 export const consoleAiLogger: AiLogger = {
   onRequest({ prompt, attempt }) {
-    console.log(`[nestjs-ai] attempt ${attempt} — prompt: ${prompt.slice(0, 80)}${prompt.length > 80 ? '…' : ''}`)
+    console.log(`[nestjs-ai] attempt ${attempt} — prompt: ${prompt.slice(0, PROMPT_PREVIEW_LENGTH)}${prompt.length > PROMPT_PREVIEW_LENGTH ? '…' : ''}`)
   },
   onResponse({ attempt, durationMs, success, error }) {
     if (success) {
