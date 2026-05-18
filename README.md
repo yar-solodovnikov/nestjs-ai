@@ -1,8 +1,9 @@
 ﻿# nestjs-ai
 
-[![npm version](https://img.shields.io/npm/v/nestjs-ai.svg)](https://www.npmjs.com/package/nestjs-ai)
-[![npm downloads](https://img.shields.io/npm/dm/nestjs-ai.svg)](https://www.npmjs.com/package/nestjs-ai)
-[![license](https://img.shields.io/npm/l/nestjs-ai.svg)](LICENSE)
+[![npm version](https://img.shields.io/npm/v/nestjs-ai)](https://www.npmjs.com/package/nestjs-ai)
+[![npm downloads](https://img.shields.io/npm/dm/nestjs-ai)](https://www.npmjs.com/package/nestjs-ai)
+[![license](https://img.shields.io/github/license/yar-solodovnikov/nestjs-ai)](LICENSE)
+[![CI](https://github.com/yar-solodovnikov/nestjs-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/yar-solodovnikov/nestjs-ai/actions/workflows/ci.yml)
 
 The first-class NestJS module for AI providers — **OpenAI, Anthropic, Gemini, Ollama**.
 
