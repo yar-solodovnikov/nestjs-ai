@@ -1,6 +1,6 @@
 {
   "name": "nestjs-ai",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "NestJS module for AI providers — OpenAI, Anthropic, Gemini, Ollama. Injectable service with Zod structured output and smart retry.",
   "author": "Yaroslav Solodovnikov",
   "license": "MIT",
