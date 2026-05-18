@@ -25,7 +25,7 @@ describe('ollamaAdapter', () => {
 
   // Bug fix: ollamaAdapter previously used require() which breaks in ESM
   // Now uses dynamic import — verify OpenAI client is created only once (cached)
-  it('caches the internal adapter — OpenAI client created only once across multiple calls', async () => {
+  it('caches the internal adapter — OpenAI client created only once across sequential calls', async () => {
     const { ollamaAdapter } = await import('../src/adapters/ollama.adapter')
     const { OpenAI } = await import('openai')
 
@@ -33,6 +33,25 @@ describe('ollamaAdapter', () => {
     await adapter.complete('first call')
     await adapter.complete('second call')
 
+    expect(OpenAI).toHaveBeenCalledTimes(1)
+    expect(mockCreate).toHaveBeenCalledTimes(2)
+  })
+
+  // Bug fix: race condition — two concurrent calls must not create two OpenAI instances
+  it('concurrent calls create only one OpenAI instance', async () => {
+    const { ollamaAdapter } = await import('../src/adapters/ollama.adapter')
+    const { OpenAI } = await import('openai')
+
+    const adapter = ollamaAdapter({ model: 'llama3.2' })
+
+    // Both calls start before either resolves — this is the race condition scenario
+    const [r1, r2] = await Promise.all([
+      adapter.complete('concurrent call 1'),
+      adapter.complete('concurrent call 2'),
+    ])
+
+    expect(r1).toBe('ollama response')
+    expect(r2).toBe('ollama response')
     expect(OpenAI).toHaveBeenCalledTimes(1)
     expect(mockCreate).toHaveBeenCalledTimes(2)
   })

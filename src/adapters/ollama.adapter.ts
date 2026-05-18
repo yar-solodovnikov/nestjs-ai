@@ -15,10 +15,9 @@ export interface OllamaAdapterOptions extends OpenAiAdapterOptions {
  * Uses dynamic import so the openai package is only loaded on first call.
  */
 export function ollamaAdapter(options: OllamaAdapterOptions = {}): IAiAdapter {
-  let cachedAdapter: IAiAdapter | null = null
+  let adapterPromise: Promise<IAiAdapter> | null = null
 
-  async function getAdapter(): Promise<IAiAdapter> {
-    if (cachedAdapter) return cachedAdapter
+  async function createAdapter(): Promise<IAiAdapter> {
     let OpenAI: typeof OpenAIClass
     try {
       const mod = await import('openai')
@@ -32,16 +31,16 @@ export function ollamaAdapter(options: OllamaAdapterOptions = {}): IAiAdapter {
       baseURL: options.baseUrl ?? DEFAULT_OLLAMA_BASE_URL,
       apiKey: 'ollama',
     })
-    cachedAdapter = openaiAdapter(client, {
+    return openaiAdapter(client, {
       model: options.model ?? DEFAULT_OLLAMA_MODEL,
       temperature: options.temperature,
     })
-    return cachedAdapter
   }
 
   return {
     async complete(prompt, callOptions) {
-      const adapter = await getAdapter()
+      adapterPromise ??= createAdapter()
+      const adapter = await adapterPromise
       return adapter.complete(prompt, callOptions)
     },
   }

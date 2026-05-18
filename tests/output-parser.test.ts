@@ -30,4 +30,23 @@ describe('parseJson', () => {
   it('parses JSON array', () => {
     expect(parseJson('[1,2,3]')).toEqual([1, 2, 3])
   })
+
+  // Branch: opening brace found but no closing brace — slices from '{' to end
+  it('extracts from opening brace when no closing brace exists', () => {
+    // '{ ' → jsonrepair → '{}' → {}
+    const result = parseJson('prefix { ')
+    expect(result).toEqual({})
+  })
+
+  // Branch: opening bracket found but no closing bracket
+  it('extracts from opening bracket when no closing bracket exists', () => {
+    const result = parseJson('prefix [ ')
+    expect(result).toEqual([])
+  })
+
+  // Branch: no brace/bracket found — full text passed to jsonrepair
+  it('passes entire text to jsonrepair when no brace or bracket is found', () => {
+    // jsonrepair repairs "true" → valid JSON
+    expect(parseJson('true')).toBe(true)
+  })
 })

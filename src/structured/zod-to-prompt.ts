@@ -29,7 +29,7 @@ function describeSchema(schema: ZodTypeAny, depth: number): string {
     return `[${describeSchema(def.type, depth)}]`
   }
 
-  if (typeName === 'ZodOptional') return `${describeSchema(def.innerType, depth)} | null`
+  if (typeName === 'ZodOptional') return `${describeSchema(def.innerType, depth)} (optional, may be omitted)`
   if (typeName === 'ZodNullable') return `${describeSchema(def.innerType, depth)} | null`
   if (typeName === 'ZodEnum') return def.values.map((v: string) => `"${v}"`).join(' | ')
   if (typeName === 'ZodString') return '"string"'

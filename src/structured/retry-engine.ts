@@ -1,4 +1,4 @@
-import type { ZodTypeAny, z } from 'zod'
+﻿import type { ZodTypeAny, z } from 'zod'
 import type { IAiAdapter, AdapterCallOptions } from '../adapters/adapter.interface'
 import type { AiLogger } from '../ai.logger'
 import { parseJson } from './output-parser'
@@ -29,6 +29,7 @@ export interface RetryOptions<T extends ZodTypeAny> {
 
 export const DEFAULT_RETRIES = 3
 const MAX_RAW_IN_PROMPT = 500
+const MAX_ZOD_ERROR_IN_PROMPT = 500
 
 export async function runWithRetry<T extends ZodTypeAny>(
   options: RetryOptions<T>,
@@ -45,38 +46,58 @@ export async function runWithRetry<T extends ZodTypeAny>(
     logger?.onRequest?.({ prompt: options.prompt, attempt, adapterOptions: adapterOptions as Record<string, unknown> })
     const start = Date.now()
 
+    // Step 1: call the adapter
+    let raw: string
     try {
-      lastRaw = await adapter.complete(prompt, adapterOptions)
-      const parsed = parseJson(lastRaw)
-      const result = schema.safeParse(parsed)
-
-      if (result.success) {
-        logger?.onResponse?.({ prompt: options.prompt, attempt, durationMs: Date.now() - start, success: true })
-        return result.data
-      }
-
-      lastZodError = result.error.errors
-        .map(e => `${e.path.join('.')}: ${e.message}`)
-        .join('; ')
-
-      const error = new Error(`Validation failed: ${lastZodError}`)
-      logger?.onResponse?.({ prompt: options.prompt, attempt, durationMs: Date.now() - start, success: false, error: lastZodError })
-
+      raw = await adapter.complete(prompt, adapterOptions)
+    } catch (adapterError) {
+      const error = adapterError instanceof Error ? adapterError : new Error(String(adapterError))
+      logger?.onResponse?.({ prompt: options.prompt, attempt, durationMs: Date.now() - start, success: false, error: error.message })
       if (hasMoreAttempts) {
         onRetry?.(attempt, error)
         logger?.onRetry?.(attempt, error)
-        prompt = `${options.prompt}\n\n${schemaHint}\n\nPrevious attempt returned invalid data.\nValidation error: ${lastZodError}\nPlease fix and return only valid JSON.`
       }
+      continue
+    }
+
+    lastRaw = raw
+
+    // Step 2: parse the raw string into a value
+    let parsed: unknown
+    try {
+      parsed = parseJson(raw)
     } catch (parseError) {
       const error = parseError instanceof Error ? parseError : new Error(String(parseError))
       logger?.onResponse?.({ prompt: options.prompt, attempt, durationMs: Date.now() - start, success: false, error: error.message })
-
       if (hasMoreAttempts) {
         onRetry?.(attempt, error)
         logger?.onRetry?.(attempt, error)
-        const rawPreview = lastRaw.slice(0, MAX_RAW_IN_PROMPT)
+        const rawPreview = raw.slice(0, MAX_RAW_IN_PROMPT)
         prompt = `${options.prompt}\n\n${schemaHint}\n\nPrevious attempt could not be parsed as JSON: ${rawPreview}\nReturn only valid JSON.`
       }
+      continue
+    }
+
+    // Step 3: validate against the Zod schema
+    const result = schema.safeParse(parsed)
+
+    if (result.success) {
+      logger?.onResponse?.({ prompt: options.prompt, attempt, durationMs: Date.now() - start, success: true })
+      return result.data
+    }
+
+    lastZodError = result.error.errors
+      .map(e => `${e.path.join('.')}: ${e.message}`)
+      .join('; ')
+
+    const validationError = new Error(`Validation failed: ${lastZodError}`)
+    logger?.onResponse?.({ prompt: options.prompt, attempt, durationMs: Date.now() - start, success: false, error: lastZodError })
+
+    if (hasMoreAttempts) {
+      onRetry?.(attempt, validationError)
+      logger?.onRetry?.(attempt, validationError)
+      const zodErrorPreview = lastZodError.slice(0, MAX_ZOD_ERROR_IN_PROMPT)
+      prompt = `${options.prompt}\n\n${schemaHint}\n\nPrevious attempt returned invalid data.\nValidation error: ${zodErrorPreview}\nPlease fix and return only valid JSON.`
     }
   }
 
@@ -84,6 +105,6 @@ export async function runWithRetry<T extends ZodTypeAny>(
     `Failed to get valid response after ${retries} attempts`,
     retries,
     lastRaw,
-    lastZodError,
+    lastZodError || undefined,
   )
 }

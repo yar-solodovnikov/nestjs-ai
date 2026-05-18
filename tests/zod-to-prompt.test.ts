@@ -23,10 +23,19 @@ describe('zodToPrompt', () => {
     expect(prompt).toContain('"tags": ["string"]')
   })
 
-  it('describes optional fields', () => {
+  // Bug fix: ZodOptional is T | undefined (field may be omitted), NOT T | null
+  it('describes optional fields as omittable, not null', () => {
     const schema = z.object({ bio: z.string().optional() })
     const prompt = zodToPrompt(schema)
-    expect(prompt).toContain('null')
+    expect(prompt).toContain('optional')
+    expect(prompt).not.toContain('"bio": "string" | null')
+  })
+
+  // ZodNullable is T | null — semantically distinct from optional
+  it('describes nullable fields as | null', () => {
+    const schema = z.object({ bio: z.string().nullable() })
+    const prompt = zodToPrompt(schema)
+    expect(prompt).toContain('"bio": "string" | null')
   })
 
   it('describes enum fields', () => {
@@ -40,6 +49,44 @@ describe('zodToPrompt', () => {
     const schema = z.object({ active: z.boolean() })
     const prompt = zodToPrompt(schema)
     expect(prompt).toContain('"active": boolean')
+  })
+
+  it('describes null fields', () => {
+    const schema = z.object({ deleted: z.null() })
+    const prompt = zodToPrompt(schema)
+    expect(prompt).toContain('"deleted": null')
+  })
+
+  it('describes literal fields', () => {
+    const schema = z.object({ type: z.literal('user') })
+    const prompt = zodToPrompt(schema)
+    expect(prompt).toContain('"type": "user"')
+  })
+
+  it('describes numeric literal fields', () => {
+    const schema = z.object({ version: z.literal(1) })
+    const prompt = zodToPrompt(schema)
+    expect(prompt).toContain('"version": 1')
+  })
+
+  it('describes union fields', () => {
+    const schema = z.object({ id: z.union([z.string(), z.number()]) })
+    const prompt = zodToPrompt(schema)
+    expect(prompt).toContain('"string" | number')
+  })
+
+  it('describes fields with defaults as their inner type', () => {
+    const schema = z.object({ lang: z.string().default('en') })
+    const prompt = zodToPrompt(schema)
+    expect(prompt).toContain('"lang": "string"')
+  })
+
+  // Branch: unrecognized schema type falls back to 'unknown'
+  it('returns "unknown" for unsupported schema types like ZodLazy', () => {
+    // ZodLazy is not handled — used for recursive schemas
+    const schema = z.object({ ref: z.lazy(() => z.string()) })
+    const prompt = zodToPrompt(schema)
+    expect(prompt).toContain('"ref": unknown')
   })
 
   it('starts with the instruction line', () => {

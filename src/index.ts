@@ -1,4 +1,4 @@
-export { AiModule } from './ai.module'
+﻿export { AiModule } from './ai.module'
 export { AiService } from './ai.service'
 export type { AiModuleOptions, ParseOptions } from './ai.service'
 export { InjectAi } from './ai.decorator'
@@ -17,4 +17,4 @@ export type { GeminiAdapterOptions } from './adapters/gemini.adapter'
 
 export { AiError } from './structured/retry-engine'
 export { AI_SERVICE_TOKEN } from './ai.constants'
-export type { AiModuleAsyncOptions } from './ai.module'
+export type { AiModuleAsyncOptions, AiModuleNamedAsyncOptions } from './ai.module'

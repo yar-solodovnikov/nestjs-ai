@@ -10,6 +10,9 @@ export interface AiModuleOptions {
   defaultRetries?: number
   defaultModel?: string
   defaultTemperature?: number
+  defaultMaxTokens?: number
+  /** When true, the module is registered globally and does not need to be imported in every feature module. */
+  isGlobal?: boolean
   /** Optional logger for request/response/retry events. */
   logger?: AiLogger
 }
@@ -62,7 +65,7 @@ export class AiService {
     const result: AdapterCallOptions = {}
     const model = overrides?.model ?? this.options.defaultModel
     const temperature = overrides?.temperature ?? this.options.defaultTemperature
-    const maxTokens = overrides?.maxTokens
+    const maxTokens = overrides?.maxTokens ?? this.options.defaultMaxTokens
     if (model !== undefined) result.model = model
     if (temperature !== undefined) result.temperature = temperature
     if (maxTokens !== undefined) result.maxTokens = maxTokens

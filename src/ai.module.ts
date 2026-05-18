@@ -1,8 +1,16 @@
-import { DynamicModule, FactoryProvider, Module, ModuleMetadata } from '@nestjs/common'
+﻿import { DynamicModule, FactoryProvider, Module, ModuleMetadata } from '@nestjs/common'
 import { AI_MODULE_OPTIONS, AI_SERVICE, AI_SERVICE_TOKEN } from './ai.constants'
 import { AiService, type AiModuleOptions } from './ai.service'
 
 export interface AiModuleAsyncOptions extends Pick<ModuleMetadata, 'imports'> {
+  inject?: FactoryProvider['inject']
+  useFactory: (...args: unknown[]) => AiModuleOptions | Promise<AiModuleOptions>
+  /** When true, the module is registered globally and does not need to be imported in every feature module. */
+  isGlobal?: boolean
+}
+
+/** Options for named instances (register/registerAsync). isGlobal has no meaning for named instances. */
+export interface AiModuleNamedAsyncOptions extends Pick<ModuleMetadata, 'imports'> {
   inject?: FactoryProvider['inject']
   useFactory: (...args: unknown[]) => AiModuleOptions | Promise<AiModuleOptions>
 }
@@ -12,6 +20,7 @@ export class AiModule {
   /** Register a single default AiService instance. */
   static forRoot(options: AiModuleOptions): DynamicModule {
     return {
+      global: options.isGlobal,
       module: AiModule,
       providers: [
         { provide: AI_MODULE_OPTIONS, useValue: options },
@@ -25,6 +34,7 @@ export class AiModule {
   /** Register the default AiService instance using an async factory (e.g. with ConfigService). */
   static forRootAsync(asyncOptions: AiModuleAsyncOptions): DynamicModule {
     return {
+      global: asyncOptions.isGlobal,
       module: AiModule,
       imports: asyncOptions.imports ?? [],
       providers: [
@@ -51,7 +61,7 @@ export class AiModule {
    * @InjectAi('fast') private fast: AiService
    * @InjectAi('smart') private smart: AiService
    */
-  static register(name: string, options: AiModuleOptions): DynamicModule {
+  static register(name: string, options: Omit<AiModuleOptions, 'isGlobal'>): DynamicModule {
     const token = AI_SERVICE_TOKEN(name)
     const optionsToken = Symbol(`AI_MODULE_OPTIONS_${name}`)
     return {
@@ -65,7 +75,7 @@ export class AiModule {
   }
 
   /** Async version of register() for named instances. */
-  static registerAsync(name: string, asyncOptions: AiModuleAsyncOptions): DynamicModule {
+  static registerAsync(name: string, asyncOptions: AiModuleNamedAsyncOptions): DynamicModule {
     const token = AI_SERVICE_TOKEN(name)
     const optionsToken = Symbol(`AI_MODULE_OPTIONS_${name}`)
     return {
