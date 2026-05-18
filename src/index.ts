@@ -12,3 +12,6 @@ export type { AnthropicAdapterOptions } from './adapters/anthropic.adapter'
 export type { OllamaAdapterOptions } from './adapters/ollama.adapter'
 
 export { AiError } from './structured/retry-engine'
+
+export { AI_SERVICE_TOKEN } from './ai.constants'
+export type { AiModuleAsyncOptions } from './ai.module'
