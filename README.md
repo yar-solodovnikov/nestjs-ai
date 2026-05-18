@@ -336,6 +336,8 @@ AiModule.forRoot({ adapter: myAdapter })
 | `defaultRetries` | `number` | `3` | Default retry count for `parse()` |
 | `defaultModel` | `string` | adapter default | Default model |
 | `defaultTemperature` | `number` | adapter default | Default temperature |
+| `defaultMaxTokens` | `number` | adapter default | Default max tokens |
+| `isGlobal` | `boolean` | `false` | Register module globally (no need to import in each feature module) |
 | `logger` | `AiLogger` | none | Request/response/retry logger |
 
 ### `ParseOptions`
@@ -347,6 +349,7 @@ AiModule.forRoot({ adapter: myAdapter })
 | `retries` | `number` | `defaultRetries` | Override retry count |
 | `model` | `string` | `defaultModel` | Override model for this call |
 | `temperature` | `number` | `defaultTemperature` | Override temperature |
+| `maxTokens` | `number` | `defaultMaxTokens` | Override max tokens for this call |
 | `onRetry` | `(attempt, error) => void` | none | Called before each retry |
 
 ### Adapters
