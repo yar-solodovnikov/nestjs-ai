@@ -1,5 +1,6 @@
 import type { ZodTypeAny, z } from 'zod'
 import type { IAiAdapter, AdapterCallOptions } from '../adapters/adapter.interface'
+import type { AiLogger } from '../ai.logger'
 import { parseJson } from './output-parser'
 import { zodToPrompt } from './zod-to-prompt'
 
@@ -22,6 +23,7 @@ export interface RetryOptions<T extends ZodTypeAny> {
   retries?: number
   onRetry?: (attempt: number, error: Error) => void
   adapterOptions?: AdapterCallOptions
+  logger?: AiLogger
 }
 
 const DEFAULT_RETRIES = 3
@@ -33,7 +35,7 @@ const DEFAULT_RETRIES = 3
 export async function runWithRetry<T extends ZodTypeAny>(
   options: RetryOptions<T>,
 ): Promise<z.infer<T>> {
-  const { adapter, schema, retries = DEFAULT_RETRIES, onRetry, adapterOptions } = options
+  const { adapter, schema, retries = DEFAULT_RETRIES, onRetry, adapterOptions, logger } = options
 
   const schemaHint = zodToPrompt(schema)
   let prompt = `${options.prompt}\n\n${schemaHint}`
@@ -41,26 +43,34 @@ export async function runWithRetry<T extends ZodTypeAny>(
   let lastZodError = ''
 
   for (let attempt = 1; attempt <= retries; attempt++) {
-    lastRaw = await adapter.complete(prompt, adapterOptions)
+    logger?.onRequest?.({ prompt: options.prompt, attempt, adapterOptions: adapterOptions as Record<string, unknown> })
+    const start = Date.now()
 
     try {
+      lastRaw = await adapter.complete(prompt, adapterOptions)
       const parsed = parseJson(lastRaw)
       const result = schema.safeParse(parsed)
 
-      if (result.success) return result.data
+      if (result.success) {
+        logger?.onResponse?.({ prompt: options.prompt, attempt, durationMs: Date.now() - start, success: true })
+        return result.data
+      }
 
       lastZodError = result.error.errors
         .map(e => `${e.path.join('.')}: ${e.message}`)
         .join('; ')
 
       const error = new Error(`Validation failed: ${lastZodError}`)
+      logger?.onResponse?.({ prompt: options.prompt, attempt, durationMs: Date.now() - start, success: false, error: lastZodError })
       onRetry?.(attempt, error)
+      logger?.onRetry?.(attempt, error)
 
-      // Feed the exact error back so the model can self-correct
       prompt = `${options.prompt}\n\n${schemaHint}\n\nPrevious attempt returned invalid JSON.\nValidation error: ${lastZodError}\nPlease fix and return only valid JSON.`
     } catch (parseError) {
       const error = parseError instanceof Error ? parseError : new Error(String(parseError))
+      logger?.onResponse?.({ prompt: options.prompt, attempt, durationMs: Date.now() - start, success: false, error: error.message })
       onRetry?.(attempt, error)
+      logger?.onRetry?.(attempt, error)
       prompt = `${options.prompt}\n\n${schemaHint}\n\nPrevious attempt could not be parsed as JSON: ${lastRaw}\nReturn only valid JSON.`
     }
   }

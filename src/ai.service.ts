@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common'
 import type { ZodTypeAny, z } from 'zod'
 import { AI_MODULE_OPTIONS } from './ai.constants'
 import type { IAiAdapter, AdapterCallOptions } from './adapters/adapter.interface'
+import type { AiLogger } from './ai.logger'
 import { runWithRetry, type RetryOptions } from './structured/retry-engine'
 
 export interface AiModuleOptions {
@@ -9,6 +10,8 @@ export interface AiModuleOptions {
   defaultRetries?: number
   defaultModel?: string
   defaultTemperature?: number
+  /** Optional logger for request/response/retry events. */
+  logger?: AiLogger
 }
 
 export interface ParseOptions extends AdapterCallOptions {
@@ -20,10 +23,12 @@ export interface ParseOptions extends AdapterCallOptions {
 export class AiService {
   private readonly adapter: IAiAdapter
   private readonly defaultRetries: number
+  private readonly logger?: AiLogger
 
   constructor(@Inject(AI_MODULE_OPTIONS) private readonly options: AiModuleOptions) {
     this.adapter = options.adapter
     this.defaultRetries = options.defaultRetries ?? 3
+    this.logger = options.logger
   }
 
   /**
@@ -40,6 +45,7 @@ export class AiService {
       prompt: params.prompt,
       retries: params.retries ?? this.defaultRetries,
       adapterOptions: this.mergeAdapterOptions(params),
+      logger: this.logger,
     }
     if (params.onRetry) retryOptions.onRetry = params.onRetry
     return runWithRetry(retryOptions)
