@@ -27,11 +27,8 @@ export interface RetryOptions<T extends ZodTypeAny> {
 }
 
 const DEFAULT_RETRIES = 3
+const MAX_RAW_IN_PROMPT = 500
 
-/**
- * Sends a prompt to the LLM, validates the response against the Zod schema,
- * and retries with the validation error as context if the response is invalid.
- */
 export async function runWithRetry<T extends ZodTypeAny>(
   options: RetryOptions<T>,
 ): Promise<z.infer<T>> {
@@ -43,6 +40,7 @@ export async function runWithRetry<T extends ZodTypeAny>(
   let lastZodError = ''
 
   for (let attempt = 1; attempt <= retries; attempt++) {
+    const hasMoreAttempts = attempt < retries
     logger?.onRequest?.({ prompt: options.prompt, attempt, adapterOptions: adapterOptions as Record<string, unknown> })
     const start = Date.now()
 
@@ -62,16 +60,22 @@ export async function runWithRetry<T extends ZodTypeAny>(
 
       const error = new Error(`Validation failed: ${lastZodError}`)
       logger?.onResponse?.({ prompt: options.prompt, attempt, durationMs: Date.now() - start, success: false, error: lastZodError })
-      onRetry?.(attempt, error)
-      logger?.onRetry?.(attempt, error)
 
-      prompt = `${options.prompt}\n\n${schemaHint}\n\nPrevious attempt returned invalid JSON.\nValidation error: ${lastZodError}\nPlease fix and return only valid JSON.`
+      if (hasMoreAttempts) {
+        onRetry?.(attempt, error)
+        logger?.onRetry?.(attempt, error)
+        prompt = `${options.prompt}\n\n${schemaHint}\n\nPrevious attempt returned invalid data.\nValidation error: ${lastZodError}\nPlease fix and return only valid JSON.`
+      }
     } catch (parseError) {
       const error = parseError instanceof Error ? parseError : new Error(String(parseError))
       logger?.onResponse?.({ prompt: options.prompt, attempt, durationMs: Date.now() - start, success: false, error: error.message })
-      onRetry?.(attempt, error)
-      logger?.onRetry?.(attempt, error)
-      prompt = `${options.prompt}\n\n${schemaHint}\n\nPrevious attempt could not be parsed as JSON: ${lastRaw}\nReturn only valid JSON.`
+
+      if (hasMoreAttempts) {
+        onRetry?.(attempt, error)
+        logger?.onRetry?.(attempt, error)
+        const rawPreview = lastRaw.slice(0, MAX_RAW_IN_PROMPT)
+        prompt = `${options.prompt}\n\n${schemaHint}\n\nPrevious attempt could not be parsed as JSON: ${rawPreview}\nReturn only valid JSON.`
+      }
     }
   }
 

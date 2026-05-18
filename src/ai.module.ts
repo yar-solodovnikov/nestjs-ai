@@ -15,8 +15,8 @@ export class AiModule {
       module: AiModule,
       providers: [
         { provide: AI_MODULE_OPTIONS, useValue: options },
-        { provide: AI_SERVICE, useClass: AiService },
         AiService,
+        { provide: AI_SERVICE, useExisting: AiService },
       ],
       exports: [AiService, AI_SERVICE],
     }
@@ -33,8 +33,8 @@ export class AiModule {
           inject: asyncOptions.inject ?? [],
           useFactory: asyncOptions.useFactory,
         },
-        { provide: AI_SERVICE, useClass: AiService },
         AiService,
+        { provide: AI_SERVICE, useExisting: AiService },
       ],
       exports: [AiService, AI_SERVICE],
     }

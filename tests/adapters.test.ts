@@ -26,6 +26,15 @@ describe('openaiAdapter', () => {
     }
     await expect(openaiAdapter(mockClient).complete('test')).rejects.toThrow('empty response')
   })
+
+  it('passes model and temperature overrides to the client', async () => {
+    const create = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'ok' } }],
+    })
+    const mockClient = { chat: { completions: { create } } }
+    await openaiAdapter(mockClient).complete('test', { model: 'gpt-4o', temperature: 0.5 })
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ model: 'gpt-4o', temperature: 0.5 }))
+  })
 })
 
 describe('anthropicAdapter', () => {
@@ -44,6 +53,13 @@ describe('anthropicAdapter', () => {
   it('throws if response content is empty', async () => {
     const mockClient = {
       messages: { create: vi.fn().mockResolvedValue({ content: [] }) },
+    }
+    await expect(anthropicAdapter(mockClient).complete('test')).rejects.toThrow('empty response')
+  })
+
+  it('throws if response block is not text type', async () => {
+    const mockClient = {
+      messages: { create: vi.fn().mockResolvedValue({ content: [{ type: 'tool_use' }] }) },
     }
     await expect(anthropicAdapter(mockClient).complete('test')).rejects.toThrow('empty response')
   })

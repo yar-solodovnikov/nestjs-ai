@@ -3,7 +3,7 @@ import type { IAiAdapter } from './adapter.interface'
 
 const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434/v1'
 const DEFAULT_OLLAMA_MODEL = 'llama3.2'
-const DEFAULT_OLLAMA_RETRIES = 5
+export const DEFAULT_OLLAMA_RETRIES = 5
 
 export interface OllamaAdapterOptions extends OpenAiAdapterOptions {
   baseUrl?: string
@@ -12,19 +12,38 @@ export interface OllamaAdapterOptions extends OpenAiAdapterOptions {
 
 /**
  * Adapter for local Ollama models.
- * Ollama is OpenAI-API-compatible — this is a thin wrapper over openaiAdapter.
- * Higher default retries because local models are less reliable with JSON output.
+ * Ollama is OpenAI-API-compatible — thin wrapper over openaiAdapter.
+ * Uses dynamic import so the openai package is only loaded on first call.
  */
 export function ollamaAdapter(options: OllamaAdapterOptions = {}): IAiAdapter {
-  const { OpenAI } = require('openai') as typeof import('openai')
-  const client = new OpenAI({
-    baseURL: options.baseUrl ?? DEFAULT_OLLAMA_BASE_URL,
-    apiKey: 'ollama',
-  })
-  return openaiAdapter(client, {
-    model: options.model ?? DEFAULT_OLLAMA_MODEL,
-    temperature: options.temperature,
-  })
-}
+  let cachedAdapter: IAiAdapter | null = null
 
-export { DEFAULT_OLLAMA_RETRIES }
+  async function getAdapter(): Promise<IAiAdapter> {
+    if (cachedAdapter) return cachedAdapter
+    let OpenAI: typeof import('openai').OpenAI
+    try {
+      const mod = await import('openai')
+      OpenAI = mod.OpenAI
+    } catch {
+      throw new Error(
+        'ollamaAdapter requires the openai package. Run: npm install openai',
+      )
+    }
+    const client = new OpenAI({
+      baseURL: options.baseUrl ?? DEFAULT_OLLAMA_BASE_URL,
+      apiKey: 'ollama',
+    })
+    cachedAdapter = openaiAdapter(client, {
+      model: options.model ?? DEFAULT_OLLAMA_MODEL,
+      temperature: options.temperature,
+    })
+    return cachedAdapter
+  }
+
+  return {
+    async complete(prompt, callOptions) {
+      const adapter = await getAdapter()
+      return adapter.complete(prompt, callOptions)
+    },
+  }
+}
