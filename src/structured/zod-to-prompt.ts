@@ -6,7 +6,7 @@ import type { ZodTypeAny } from 'zod'
  * Supports both zod v3 and zod v4 schemas.
  */
 export function zodToPrompt(schema: ZodTypeAny): string {
-  return `Return ONLY valid JSON matching this schema:\n${describeSchema(schema, 0)}`
+  return `Return ONLY valid JSON matching this schema:\n${describeSchema(schema, 0, new Set())}`
 }
 
 function indent(depth: number): string {
@@ -35,21 +35,31 @@ function enumValues(entries: Record<string, unknown>): unknown[] {
     .map(([, value]) => value)
 }
 
-function describeSchema(schema: ZodTypeAny, depth: number): string {
-  const base = describeType(schema, depth)
-  const description = (schema as AnyDef)?.description
-  return description ? `${base} (${description})` : base
+/**
+ * `expanding` holds the schemas on the current path. Recursive schemas (trees, linked lists) refer
+ * back to an ancestor through z.lazy() or, in zod v4, a getter in the object shape.
+ */
+function describeSchema(schema: ZodTypeAny, depth: number, expanding: Set<unknown>): string {
+  if (expanding.has(schema)) return '(recursive: same structure as the enclosing value)'
+  expanding.add(schema)
+  try {
+    const base = describeType(schema, depth, expanding)
+    const description = (schema as AnyDef)?.description
+    return description ? `${base} (${description})` : base
+  } finally {
+    expanding.delete(schema)
+  }
 }
 
-function describeType(schema: ZodTypeAny, depth: number): string {
+function describeType(schema: ZodTypeAny, depth: number, expanding: Set<unknown>): string {
   const { kind, def } = getKind(schema)
-  const child = (s: unknown): string => describeSchema(s as ZodTypeAny, depth)
+  const child = (s: unknown): string => describeSchema(s as ZodTypeAny, depth, expanding)
 
   switch (kind) {
     case 'object': {
       const shape = typeof def.shape === 'function' ? def.shape() : def.shape
       const fields = Object.entries(shape as Record<string, unknown>)
-        .map(([key, val]) => `${indent(depth + 1)}${JSON.stringify(key)}: ${describeSchema(val as ZodTypeAny, depth + 1)}`)
+        .map(([key, val]) => `${indent(depth + 1)}${JSON.stringify(key)}: ${describeSchema(val as ZodTypeAny, depth + 1, expanding)}`)
         .join(',\n')
       return `{\n${fields}\n${indent(depth)}}`
     }
@@ -101,6 +111,8 @@ function describeType(schema: ZodTypeAny, depth: number): string {
     case 'boolean': return 'boolean'
     case 'null': return 'null'
     case 'date': return '"ISO 8601 date string"'
+    case 'lazy':
+      return child(def.getter())
     case 'any':
     case 'unknown':
       return 'any'

@@ -83,9 +83,8 @@ describe('zodToPrompt', () => {
   })
 
   // Branch: unrecognized schema type falls back to 'unknown'
-  it('returns "unknown" for unsupported schema types like ZodLazy', () => {
-    // ZodLazy is not handled — used for recursive schemas
-    const schema = z.object({ ref: z.lazy(() => z.string()) })
+  it('returns "unknown" for schema types JSON cannot represent, like ZodMap', () => {
+    const schema = z.object({ ref: z.map(z.string(), z.number()) })
     const prompt = zodToPrompt(schema)
     expect(prompt).toContain('"ref": unknown')
   })
@@ -155,5 +154,42 @@ describe('zodToPrompt', () => {
     expect(prompt).toContain('"bio": "string" (optional, may be omitted)')
     expect(prompt).toContain('"note": "string" | null')
     expect(prompt).toContain('"n": number')
+  })
+})
+
+describe('zodToPrompt recursive and lazy schemas', () => {
+  const recursive = '(recursive: same structure as the enclosing value)'
+
+  it('describes a z.lazy() schema by its inner schema', () => {
+    const prompt = zodToPrompt(z.object({ name: z.lazy(() => z.string()) }))
+    expect(prompt).toContain('"name": "string"')
+  })
+
+  it('stops at the recursion point of a recursive zod v3 schema', () => {
+    interface Category { name: string, subcategories: Category[] }
+    const Category: z.ZodType<Category> = z.lazy(() => z.object({
+      name: z.string(),
+      subcategories: z.array(Category),
+    }))
+    const prompt = zodToPrompt(Category as unknown as ZodTypeAny)
+    expect(prompt).toContain('"name": "string"')
+    expect(prompt).toContain(`"subcategories": [${recursive}]`)
+  })
+
+  it('stops at the recursion point of a zod v4 getter-based recursive schema', () => {
+    const Node = z4.object({
+      value: z4.number(),
+      get next() { return Node.nullable() },
+    })
+    const prompt = zodToPrompt(Node as unknown as ZodTypeAny)
+    expect(prompt).toContain('"value": number')
+    expect(prompt).toContain(`"next": ${recursive} | null`)
+  })
+
+  it('describes a reused (non-recursive) schema in full every time', () => {
+    const Address = z.object({ city: z.string() })
+    const prompt = zodToPrompt(z.object({ home: Address, work: Address }))
+    expect(prompt).not.toContain(recursive)
+    expect(prompt.match(/"city": "string"/g)).toHaveLength(2)
   })
 })
