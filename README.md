@@ -434,7 +434,8 @@ Provider notes:
 
 ## Migrating from 1.x
 
-2.0 keeps the public API (imports, options, signatures), but changes runtime behavior:
+2.0 requires Node.js 20 or later (Node 18 reached end of life; `@google/genai` needs Node 20). It
+keeps the public API (imports, options, signatures), but changes runtime behavior:
 
 **Errors that were not thrown before**
 

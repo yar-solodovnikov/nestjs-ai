@@ -54,7 +54,7 @@
     "url": "git+https://github.com/yar-solodovnikov/nestjs-ai.git"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "sideEffects": false,
   "dependencies": {
