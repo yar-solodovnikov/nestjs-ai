@@ -193,3 +193,28 @@ describe('zodToPrompt recursive and lazy schemas', () => {
     expect(prompt.match(/"city": "string"/g)).toHaveLength(2)
   })
 })
+
+describe('zodToPrompt wrapper and catch-all types', () => {
+  it('describes z.any() and z.unknown() as any', () => {
+    const prompt = zodToPrompt(z.object({ a: z.any(), u: z.unknown() }))
+    expect(prompt).toContain('"a": any')
+    expect(prompt).toContain('"u": any')
+  })
+
+  it('describes a branded schema by its base type', () => {
+    expect(zodToPrompt(z.object({ id: z.string().brand('UserId') }))).toContain('"id": "string"')
+  })
+
+  it('describes a zod v3 pipe by its input side', () => {
+    const schema = z.object({ n: z.string().pipe(z.coerce.number()) })
+    expect(zodToPrompt(schema)).toContain('"n": "string"')
+  })
+
+  it('describes an intersection as both sides joined with &', () => {
+    const schema = z.intersection(z.object({ a: z.string() }), z.object({ b: z.number() }))
+    const prompt = zodToPrompt(schema)
+    expect(prompt).toContain('"a": "string"')
+    expect(prompt).toContain('} & {')
+    expect(prompt).toContain('"b": number')
+  })
+})

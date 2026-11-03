@@ -217,6 +217,13 @@ describe('anthropicAdapter', () => {
     expect(err.message).toContain('cyber')
   })
 
+  it('throws a refusal AiResponseError without a category when stop_details is missing', async () => {
+    const create = vi.fn().mockResolvedValue({ stop_reason: 'refusal', stop_details: null, content: [] })
+    const err = await anthropicAdapter({ messages: { create } }).complete('test').catch(e => e)
+    expect(err).toMatchObject({ reason: 'refusal', detail: undefined })
+    expect(err.message).toBe('Anthropic declined the request')
+  })
+
   it('defaults to claude-opus-5-5 with max_tokens 16000', async () => {
     const create = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
     await anthropicAdapter({ messages: { create } }).complete('test')
@@ -268,6 +275,12 @@ describe('anthropicAdapter', () => {
       await anthropicAdapter(client, { model: 'claude-haiku-5-5' }).complete('test')
       expect(client.beta.messages.create).not.toHaveBeenCalled()
       expect(client.messages.create).toHaveBeenCalledOnce()
+    })
+
+    it('is not used when the client has no beta messages API (older SDKs)', async () => {
+      const create = vi.fn().mockResolvedValue(ok)
+      expect(await anthropicAdapter({ messages: { create } }).complete('test')).toBe('ok')
+      expect(create.mock.calls[0]![0]).not.toHaveProperty('fallbacks')
     })
 
     it('is not used for Bedrock, Vertex or Foundry clients', async () => {

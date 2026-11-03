@@ -92,6 +92,14 @@ See {"x":1}`)).toBe(42)
     expect(parseJson('Answer {"a":1}. Hope that helps :}')).toEqual({ a: 1 })
   })
 
+  it('handles escaped quotes inside JSON strings', () => {
+    expect(parseJson('Result: {"text":"say \\"hi\\" } ]","n":1} ok')).toEqual({ text: 'say "hi" } ]', n: 1 })
+  })
+
+  it('skips a segment with mismatched brackets and finds the next value', () => {
+    expect(parseJson('Typo {"a":1] then {"b":2}')).toEqual({ b: 2 })
+  })
+
   it('ignores braces inside JSON strings', () => {
     expect(parseJson('Result: {"text":"use } and ] freely"} done')).toEqual({ text: 'use } and ] freely' })
   })
