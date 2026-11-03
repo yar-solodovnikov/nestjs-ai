@@ -144,6 +144,63 @@ describe('anthropicAdapter', () => {
     expect(create.mock.calls[0]![0]).toMatchObject({ model: 'claude-opus-5-5', max_tokens: 16000 })
   })
 
+  describe('refusal fallback', () => {
+    const ok = { content: [{ type: 'text', text: 'ok' }] }
+
+    function firstPartyClient() {
+      return {
+        messages: { create: vi.fn().mockResolvedValue(ok) },
+        beta: { messages: { create: vi.fn().mockResolvedValue(ok) } },
+      }
+    }
+
+    it('uses the beta endpoint with fallbacks "default" for supported models', async () => {
+      const client = firstPartyClient()
+      await anthropicAdapter(client).complete('test')
+      expect(client.messages.create).not.toHaveBeenCalled()
+      expect(client.beta.messages.create).toHaveBeenCalledWith(expect.objectContaining({
+        model: 'claude-opus-5-5',
+        betas: ['server-side-fallback-2026-07-01'],
+        fallbacks: 'default',
+      }))
+    })
+
+    it('ignores fallback blocks in the content', async () => {
+      const client = firstPartyClient()
+      client.beta.messages.create.mockResolvedValue({
+        stop_reason: 'end_turn',
+        content: [
+          { type: 'fallback', from: { model: 'claude-opus-5-5' }, to: { model: 'claude-opus-4-8' } },
+          { type: 'text', text: 'rescued' },
+        ],
+      })
+      expect(await anthropicAdapter(client).complete('test')).toBe('rescued')
+    })
+
+    it('can be disabled', async () => {
+      const client = firstPartyClient()
+      await anthropicAdapter(client, { refusalFallback: false }).complete('test')
+      expect(client.beta.messages.create).not.toHaveBeenCalled()
+      expect(client.messages.create.mock.calls[0]![0]).not.toHaveProperty('fallbacks')
+    })
+
+    it('is not used for models without fallback support', async () => {
+      const client = firstPartyClient()
+      await anthropicAdapter(client, { model: 'claude-haiku-5-5' }).complete('test')
+      expect(client.beta.messages.create).not.toHaveBeenCalled()
+      expect(client.messages.create).toHaveBeenCalledOnce()
+    })
+
+    it('is not used for Bedrock, Vertex or Foundry clients', async () => {
+      for (const name of ['AnthropicBedrockMantle', 'AnthropicVertex', 'AnthropicFoundry']) {
+        const client = Object.assign(Object.create({ constructor: { name } }), firstPartyClient())
+        await anthropicAdapter(client).complete('test')
+        expect(client.beta.messages.create).not.toHaveBeenCalled()
+        expect(client.messages.create).toHaveBeenCalledOnce()
+      }
+    })
+  })
+
   it('never sends temperature, even when one is configured', async () => {
     const create = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
     const adapter = anthropicAdapter({ messages: { create } }, { temperature: 0.2 })
