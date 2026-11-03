@@ -1,8 +1,12 @@
 import type { IAiAdapter, AdapterCallOptions } from './adapter.interface'
 import { AiResponseError } from './response-error'
 
-const DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
-const DEFAULT_MAX_TOKENS = 1024
+const DEFAULT_MODEL = 'claude-opus-5-5'
+/**
+ * Current Claude models think by default, and thinking counts toward max_tokens, so a small
+ * limit truncates the answer. 16000 keeps non-streaming requests within SDK HTTP timeouts.
+ */
+const DEFAULT_MAX_TOKENS = 16000
 
 export interface AnthropicAdapterOptions {
   model?: string

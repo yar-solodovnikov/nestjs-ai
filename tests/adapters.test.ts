@@ -138,6 +138,12 @@ describe('anthropicAdapter', () => {
     expect(err.message).toContain('cyber')
   })
 
+  it('defaults to claude-opus-5-5 with max_tokens 16000', async () => {
+    const create = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
+    await anthropicAdapter({ messages: { create } }).complete('test')
+    expect(create.mock.calls[0]![0]).toMatchObject({ model: 'claude-opus-5-5', max_tokens: 16000 })
+  })
+
   it('never sends temperature, even when one is configured', async () => {
     const create = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
     const adapter = anthropicAdapter({ messages: { create } }, { temperature: 0.2 })
