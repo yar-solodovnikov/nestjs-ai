@@ -60,6 +60,9 @@ export async function runWithRetry<T extends ZodTypeAny>(
   options: RetryOptions<T>,
 ): Promise<z.infer<T>> {
   const { adapter, schema, retries = DEFAULT_RETRIES, onRetry, adapterOptions, logger } = options
+  if (!Number.isInteger(retries) || retries < 1) {
+    throw new RangeError(`retries must be an integer >= 1 (total number of attempts), got ${retries}`)
+  }
 
   const schemaHint = zodToPrompt(schema)
   let prompt = `${options.prompt}\n\n${schemaHint}`
@@ -90,7 +93,9 @@ export async function runWithRetry<T extends ZodTypeAny>(
       continue
     }
 
+    // lastRaw and lastZodError always describe the same response
     lastRaw = raw
+    lastZodError = ''
 
     // Step 2: parse the raw string into a value
     let parsed: unknown

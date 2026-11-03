@@ -246,3 +246,20 @@ describe('runWithRetry adapter error handling', () => {
     expect(adapter.calls).toBe(3)
   })
 })
+
+describe('runWithRetry argument validation and AiError consistency', () => {
+  it.each([0, -1, 1.5, Number.NaN])('rejects retries=%s without calling the adapter', async retries => {
+    const complete = vi.fn()
+    await expect(runWithRetry({ adapter: { complete }, schema: UserSchema, prompt: 'test', retries }))
+      .rejects.toBeInstanceOf(RangeError)
+    expect(complete).not.toHaveBeenCalled()
+  })
+
+  it('does not report a stale Zod error when the last response failed JSON parsing', async () => {
+    const adapter = makeAdapter(['{"name":"John","age":"wrong"}', 'not json {{{'])
+    const err: AiError = await runWithRetry({ adapter, schema: UserSchema, prompt: 'test', retries: 2 })
+      .catch(e => e)
+    expect(err.lastRaw).toBe('not json {{{')
+    expect(err.lastZodError).toBeUndefined()
+  })
+})
