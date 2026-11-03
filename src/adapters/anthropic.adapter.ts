@@ -27,9 +27,13 @@ export function anthropicAdapter(
         temperature: options.temperature ?? defaults.temperature ?? DEFAULT_TEMPERATURE,
         messages: [{ role: 'user', content: prompt }],
       })
-      const block = response.content[0]
-      if (!block || block.type !== 'text') throw new Error('Anthropic returned an empty response')
-      return block.text
+      // The response may start with non-text blocks (e.g. "thinking" with extended thinking enabled).
+      const text = (response.content as Array<{ type: string, text?: string }>)
+        .filter(block => block.type === 'text')
+        .map(block => block.text ?? '')
+        .join('')
+      if (!text) throw new Error('Anthropic returned an empty response')
+      return text
     },
   }
 }

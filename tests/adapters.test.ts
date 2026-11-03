@@ -63,4 +63,19 @@ describe('anthropicAdapter', () => {
     }
     await expect(anthropicAdapter(mockClient).complete('test')).rejects.toThrow('empty response')
   })
+
+  it('skips leading thinking blocks and joins all text blocks', async () => {
+    const mockClient = {
+      messages: {
+        create: vi.fn().mockResolvedValue({
+          content: [
+            { type: 'thinking', thinking: 'let me think' },
+            { type: 'text', text: '{"a":' },
+            { type: 'text', text: '1}' },
+          ],
+        }),
+      },
+    }
+    expect(await anthropicAdapter(mockClient).complete('test')).toBe('{"a":1}')
+  })
 })
