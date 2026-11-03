@@ -34,6 +34,7 @@ export function ollamaAdapter(options: OllamaAdapterOptions = {}): IAiAdapter {
     return openaiAdapter(client, {
       model: options.model ?? DEFAULT_OLLAMA_MODEL,
       temperature: options.temperature,
+      maxTokens: options.maxTokens,
     })
   }
 

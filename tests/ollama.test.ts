@@ -64,4 +64,10 @@ describe('ollamaAdapter', () => {
       expect.objectContaining({ model: 'mistral' })
     )
   })
+
+  it('passes maxTokens from adapter options to the request', async () => {
+    const { ollamaAdapter } = await import('../src/adapters/ollama.adapter')
+    await ollamaAdapter({ maxTokens: 64 }).complete('test')
+    expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ max_tokens: 64 }))
+  })
 })

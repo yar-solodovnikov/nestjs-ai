@@ -16,6 +16,15 @@ describe('geminiAdapter', () => {
     )
   })
 
+  it('uses maxTokens from adapter defaults when not overridden per call', async () => {
+    const mockModel = { generateContent: vi.fn().mockResolvedValue({ response: { text: () => 'ok' } }) }
+    const mockClient = { getGenerativeModel: vi.fn().mockReturnValue(mockModel) }
+    await geminiAdapter(mockClient, { maxTokens: 50 }).complete('test')
+    expect(mockClient.getGenerativeModel).toHaveBeenCalledWith(
+      expect.objectContaining({ generationConfig: expect.objectContaining({ maxOutputTokens: 50 }) })
+    )
+  })
+
   it('throws if response text is empty', async () => {
     const mockModel = {
       generateContent: vi.fn().mockResolvedValue({ response: { text: () => '' } }),

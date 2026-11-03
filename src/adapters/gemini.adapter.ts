@@ -6,6 +6,7 @@ const DEFAULT_TEMPERATURE = 0
 export interface GeminiAdapterOptions {
   model?: string
   temperature?: number
+  maxTokens?: number
 }
 
 /**
@@ -27,7 +28,7 @@ export function geminiAdapter(
         model: options.model ?? defaults.model ?? DEFAULT_MODEL,
         generationConfig: {
           temperature: options.temperature ?? defaults.temperature ?? DEFAULT_TEMPERATURE,
-          maxOutputTokens: options.maxTokens,
+          maxOutputTokens: options.maxTokens ?? defaults.maxTokens,
         },
       })
       const result = await model.generateContent(prompt)

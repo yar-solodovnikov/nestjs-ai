@@ -12,6 +12,7 @@ const REASONING_MODEL_RE = /(?:^|\/)(?:o\d|gpt-5)(?![\w.-]*-chat)/i
 export interface OpenAiAdapterOptions {
   model?: string
   temperature?: number
+  maxTokens?: number
 }
 
 /**
@@ -29,7 +30,7 @@ export function openaiAdapter(
       const isReasoningModel = REASONING_MODEL_RE.test(model)
       const temperature = options.temperature ?? defaults.temperature
         ?? (isReasoningModel ? undefined : DEFAULT_TEMPERATURE)
-      const maxTokens = options.maxTokens
+      const maxTokens = options.maxTokens ?? defaults.maxTokens
 
       const request: Record<string, unknown> = {
         model,

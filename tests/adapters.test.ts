@@ -67,6 +67,14 @@ describe('openaiAdapter', () => {
     },
   )
 
+  it('uses maxTokens from adapter defaults when not overridden per call', async () => {
+    const { create, client } = mockOpenAi()
+    await openaiAdapter(client, { maxTokens: 50 }).complete('test')
+    expect(create.mock.calls[0]![0]).toMatchObject({ max_tokens: 50 })
+    await openaiAdapter(client, { maxTokens: 50 }).complete('test', { maxTokens: 10 })
+    expect(create.mock.calls[1]![0]).toMatchObject({ max_tokens: 10 })
+  })
+
   it('treats gpt-5-chat models as regular chat models', async () => {
     const { create, client } = mockOpenAi()
     await openaiAdapter(client).complete('test', { model: 'gpt-5-chat-latest', maxTokens: 100 })
