@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { z } from 'zod'
+import { z, type ZodTypeAny } from 'zod'
+import * as z4 from 'zod/v4'
 import { zodToPrompt } from '../src/structured/zod-to-prompt'
 
 describe('zodToPrompt', () => {
@@ -92,5 +93,67 @@ describe('zodToPrompt', () => {
   it('starts with the instruction line', () => {
     const schema = z.object({ x: z.string() })
     expect(zodToPrompt(schema)).toMatch(/^Return ONLY valid JSON/)
+  })
+
+  it('describes refined and transformed fields by their input type', () => {
+    const schema = z.object({
+      name: z.string().refine(s => s.length > 0),
+      count: z.number().transform(String),
+      trimmed: z.preprocess(v => v, z.string()),
+    })
+    const prompt = zodToPrompt(schema)
+    expect(prompt).toContain('"name": "string"')
+    expect(prompt).toContain('"count": number')
+    expect(prompt).toContain('"trimmed": "string"')
+  })
+
+  it('describes records, tuples and dates', () => {
+    const schema = z.object({ scores: z.record(z.number()), pair: z.tuple([z.string(), z.number()]), at: z.date() })
+    const prompt = zodToPrompt(schema)
+    expect(prompt).toContain('"scores": { [key: string]: number }')
+    expect(prompt).toContain('"pair": ["string", number]')
+    expect(prompt).toContain('"at": "ISO 8601 date string"')
+  })
+
+  it('describes discriminated unions', () => {
+    const schema = z.discriminatedUnion('kind', [
+      z.object({ kind: z.literal('a'), a: z.string() }),
+      z.object({ kind: z.literal('b'), b: z.number() }),
+    ])
+    const prompt = zodToPrompt(schema)
+    expect(prompt).toContain('"kind": "a"')
+    expect(prompt).toContain('"kind": "b"')
+  })
+
+  it('describes native enums without numeric reverse mappings', () => {
+    enum Color { Red, Green }
+    const prompt = zodToPrompt(z.object({ c: z.nativeEnum(Color), s: z.nativeEnum({ A: 'a', B: 'b' } as const) }))
+    expect(prompt).toContain('"c": 0 | 1')
+    expect(prompt).toContain('"s": "a" | "b"')
+  })
+
+  it('includes .describe() text', () => {
+    const prompt = zodToPrompt(z.object({ price: z.number().describe('price in USD') }))
+    expect(prompt).toContain('"price": number (price in USD)')
+  })
+
+  it('describes zod v4 schemas', () => {
+    const schema = z4.object({
+      name: z4.string(),
+      tags: z4.array(z4.string()),
+      role: z4.enum(['admin', 'user']),
+      kind: z4.literal('x'),
+      bio: z4.string().optional(),
+      note: z4.string().nullable(),
+      n: z4.number().transform(String),
+    })
+    const prompt = zodToPrompt(schema as unknown as ZodTypeAny)
+    expect(prompt).toContain('"name": "string"')
+    expect(prompt).toContain('"tags": ["string"]')
+    expect(prompt).toContain('"role": "admin" | "user"')
+    expect(prompt).toContain('"kind": "x"')
+    expect(prompt).toContain('"bio": "string" (optional, may be omitted)')
+    expect(prompt).toContain('"note": "string" | null')
+    expect(prompt).toContain('"n": number')
   })
 })
