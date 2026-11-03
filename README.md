@@ -258,6 +258,32 @@ Zod error:  "age: Expected number, received string"
 Attempt 2: LLM receives the error -> returns { "age": 25 }
 ```
 
+Works with both zod v3 and zod v4 schemas.
+
+### Error handling
+
+When all attempts fail, `parse()` throws an `AiError`:
+
+```ts
+import { AiError } from 'nestjs-ai'
+
+try {
+  await this.ai.parse({ schema, prompt })
+} catch (err) {
+  if (err instanceof AiError) {
+    err.attempts      // attempts actually made
+    err.lastRaw       // last raw LLM response ('' if the provider never answered)
+    err.lastZodError  // validation error for lastRaw, if any
+    err.cause         // the underlying error of the last attempt (e.g. the SDK's APIError)
+  }
+}
+```
+
+Provider errors with a 4xx status (invalid API key, unknown model, bad request) are not retried,
+since they fail the same way every time. Rate limits (429), timeouts (408), conflicts (409),
+server errors and network errors are retried. The OpenAI and Anthropic SDKs also retry
+rate limits with backoff on their own before the error reaches `nestjs-ai`.
+
 ---
 
 ## Logging
@@ -333,7 +359,7 @@ AiModule.forRoot({ adapter: myAdapter })
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `adapter` | `IAiAdapter` | required | Provider adapter |
-| `defaultRetries` | `number` | `3` | Default retry count for `parse()` |
+| `defaultRetries` | `number` | `3` | Default total number of attempts for `parse()` (integer >= 1) |
 | `defaultModel` | `string` | adapter default | Default model |
 | `defaultTemperature` | `number` | adapter default | Default temperature |
 | `defaultMaxTokens` | `number` | adapter default | Default max tokens |
@@ -346,7 +372,7 @@ AiModule.forRoot({ adapter: myAdapter })
 |---|---|---|---|
 | `schema` | `ZodTypeAny` | required | Zod schema for validation |
 | `prompt` | `string` | required | Prompt text |
-| `retries` | `number` | `defaultRetries` | Override retry count |
+| `retries` | `number` | `defaultRetries` | Override the total number of attempts (integer >= 1) |
 | `model` | `string` | `defaultModel` | Override model for this call |
 | `temperature` | `number` | `defaultTemperature` | Override temperature |
 | `maxTokens` | `number` | `defaultMaxTokens` | Override max tokens for this call |
@@ -360,6 +386,12 @@ AiModule.forRoot({ adapter: myAdapter })
 | `anthropicAdapter(client, opts?)` | `@anthropic-ai/sdk` | `claude-haiku-4-5-20251001` |
 | `geminiAdapter(client, opts?)` | `@google/generative-ai` | `gemini-2.0-flash` |
 | `ollamaAdapter(opts?)` | `openai` (via baseURL) | `llama3.2` |
+
+All adapters accept `{ model?, temperature?, maxTokens? }` defaults (`ollamaAdapter` also takes `baseUrl`).
+Per-call options and `AiModuleOptions` defaults take precedence over adapter defaults.
+
+For OpenAI reasoning models (`o1`, `o3`, `o4-mini`, `gpt-5`…), `openaiAdapter` sends `max_completion_tokens`
+instead of `max_tokens` and omits the default temperature, which these models reject.
 
 ---
 
