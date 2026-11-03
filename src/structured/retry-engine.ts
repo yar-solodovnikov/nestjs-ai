@@ -10,6 +10,8 @@ export class AiError extends Error {
     public readonly attempts: number,
     public readonly lastRaw: string,
     public readonly lastZodError?: string,
+    /** The error from the last failed attempt (adapter, JSON parse or validation error). */
+    public readonly cause?: unknown,
   ) {
     super(message)
     this.name = 'AiError'
@@ -30,6 +32,29 @@ export interface RetryOptions<T extends ZodTypeAny> {
 export const DEFAULT_RETRIES = 3
 const MAX_RAW_IN_PROMPT = 500
 const MAX_ZOD_ERROR_IN_PROMPT = 500
+const HTTP_CLIENT_ERROR_MIN = 400
+const HTTP_SERVER_ERROR_MIN = 500
+const HTTP_REQUEST_TIMEOUT = 408
+const HTTP_CONFLICT = 409
+const HTTP_TOO_MANY_REQUESTS = 429
+/** 4xx statuses that are worth retrying. */
+const RETRYABLE_CLIENT_STATUSES = new Set([HTTP_REQUEST_TIMEOUT, HTTP_CONFLICT, HTTP_TOO_MANY_REQUESTS])
+
+/**
+ * Client errors (bad API key, unknown model, invalid request) will fail the same way on every
+ * attempt, so retrying them only wastes time and tokens. Rate limits and server errors are retried.
+ * Works with OpenAI, Anthropic and Gemini SDK errors, which all expose an HTTP `status`.
+ */
+function isRetryableAdapterError(error: unknown): boolean {
+  const status = (error as { status?: unknown } | null)?.status
+  if (typeof status !== 'number') return true
+  if (status >= HTTP_CLIENT_ERROR_MIN && status < HTTP_SERVER_ERROR_MIN) return RETRYABLE_CLIENT_STATUSES.has(status)
+  return true
+}
+
+function toError(value: unknown): Error {
+  return value instanceof Error ? value : new Error(String(value))
+}
 
 export async function runWithRetry<T extends ZodTypeAny>(
   options: RetryOptions<T>,
@@ -40,19 +65,24 @@ export async function runWithRetry<T extends ZodTypeAny>(
   let prompt = `${options.prompt}\n\n${schemaHint}`
   let lastRaw = ''
   let lastZodError = ''
+  let lastError: Error | undefined
+  let attemptsMade = 0
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     const hasMoreAttempts = attempt < retries
     logger?.onRequest?.({ prompt: options.prompt, attempt, adapterOptions: adapterOptions as Record<string, unknown> })
     const start = Date.now()
+    attemptsMade = attempt
 
     // Step 1: call the adapter
     let raw: string
     try {
       raw = await adapter.complete(prompt, adapterOptions)
     } catch (adapterError) {
-      const error = adapterError instanceof Error ? adapterError : new Error(String(adapterError))
+      const error = toError(adapterError)
+      lastError = error
       logger?.onResponse?.({ prompt: options.prompt, attempt, durationMs: Date.now() - start, success: false, error: error.message })
+      if (!isRetryableAdapterError(adapterError)) break
       if (hasMoreAttempts) {
         onRetry?.(attempt, error)
         logger?.onRetry?.(attempt, error)
@@ -67,7 +97,8 @@ export async function runWithRetry<T extends ZodTypeAny>(
     try {
       parsed = parseJson(raw)
     } catch (parseError) {
-      const error = parseError instanceof Error ? parseError : new Error(String(parseError))
+      const error = toError(parseError)
+      lastError = error
       logger?.onResponse?.({ prompt: options.prompt, attempt, durationMs: Date.now() - start, success: false, error: error.message })
       if (hasMoreAttempts) {
         onRetry?.(attempt, error)
@@ -91,6 +122,7 @@ export async function runWithRetry<T extends ZodTypeAny>(
       .join('; ')
 
     const validationError = new Error(`Validation failed: ${lastZodError}`)
+    lastError = validationError
     logger?.onResponse?.({ prompt: options.prompt, attempt, durationMs: Date.now() - start, success: false, error: lastZodError })
 
     if (hasMoreAttempts) {
@@ -101,10 +133,12 @@ export async function runWithRetry<T extends ZodTypeAny>(
     }
   }
 
+  const reason = lastError ? `: ${lastError.message}` : ''
   throw new AiError(
-    `Failed to get valid response after ${retries} attempts`,
-    retries,
+    `Failed to get valid response after ${attemptsMade} attempt${attemptsMade === 1 ? '' : 's'}${reason}`,
+    attemptsMade,
     lastRaw,
     lastZodError || undefined,
+    lastError,
   )
 }

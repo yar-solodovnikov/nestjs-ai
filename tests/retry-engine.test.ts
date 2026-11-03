@@ -198,3 +198,51 @@ describe('runWithRetry', () => {
     expect(zodErrorInPrompt.length).toBeLessThanOrEqual(500)
   })
 })
+
+describe('runWithRetry adapter error handling', () => {
+  class ApiError extends Error {
+    constructor(message: string, public readonly status: number) { super(message) }
+  }
+
+  function failingAdapter(error: unknown): IAiAdapter & { calls: number } {
+    const adapter = {
+      calls: 0,
+      async complete(): Promise<string> { adapter.calls++; throw error },
+    }
+    return adapter
+  }
+
+  it('exposes the last adapter error as AiError.cause and in the message', async () => {
+    const cause = new Error('connect ECONNREFUSED')
+    const err: AiError = await runWithRetry({ adapter: failingAdapter(cause), schema: UserSchema, prompt: 'test', retries: 2 })
+      .catch(e => e)
+    expect(err).toBeInstanceOf(AiError)
+    expect(err.cause).toBe(cause)
+    expect(err.message).toBe('Failed to get valid response after 2 attempts: connect ECONNREFUSED')
+  })
+
+  it('exposes the validation error as cause when validation failed last', async () => {
+    const err: AiError = await runWithRetry({ adapter: makeAdapter(['{"name":"a","age":"x"}']), schema: UserSchema, prompt: 'test', retries: 1 })
+      .catch(e => e)
+    expect(err.cause).toBeInstanceOf(Error)
+    expect(err.message).toContain('Validation failed: age')
+  })
+
+  it.each([400, 401, 403, 404, 422])('does not retry non-retryable client error %i', async status => {
+    const onRetry = vi.fn()
+    const adapter = failingAdapter(new ApiError('nope', status))
+    const err: AiError = await runWithRetry({ adapter, schema: UserSchema, prompt: 'test', retries: 3, onRetry })
+      .catch(e => e)
+    expect(adapter.calls).toBe(1)
+    expect(onRetry).not.toHaveBeenCalled()
+    expect(err).toBeInstanceOf(AiError)
+    expect(err.attempts).toBe(1)
+    expect((err.cause as ApiError).status).toBe(status)
+  })
+
+  it.each([408, 409, 429, 500, 503])('retries retryable status %i', async status => {
+    const adapter = failingAdapter(new ApiError('temporary', status))
+    await runWithRetry({ adapter, schema: UserSchema, prompt: 'test', retries: 3 }).catch(() => {})
+    expect(adapter.calls).toBe(3)
+  })
+})
