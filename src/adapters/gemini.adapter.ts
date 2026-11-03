@@ -1,11 +1,14 @@
 import type { IAiAdapter, AdapterCallOptions } from './adapter.interface'
 import { AiResponseError } from './response-error'
 
-const DEFAULT_MODEL = 'gemini-2.0-flash'
-const DEFAULT_TEMPERATURE = 0
+const DEFAULT_MODEL = 'gemini-3.6-flash'
 
 export interface GeminiAdapterOptions {
   model?: string
+  /**
+   * Sent only when set. Google recommends keeping Gemini 3 models at the default temperature (1.0):
+   * lower values can cause looping or degraded output, so the adapter does not lower it by default.
+   */
   temperature?: number
   maxTokens?: number
 }
@@ -28,7 +31,7 @@ export function geminiAdapter(
       const model = client.getGenerativeModel({
         model: options.model ?? defaults.model ?? DEFAULT_MODEL,
         generationConfig: {
-          temperature: options.temperature ?? defaults.temperature ?? DEFAULT_TEMPERATURE,
+          temperature: options.temperature ?? defaults.temperature,
           maxOutputTokens: options.maxTokens ?? defaults.maxTokens,
         },
       })

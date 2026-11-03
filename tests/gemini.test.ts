@@ -18,7 +18,7 @@ describe('geminiAdapter', () => {
     const adapter = geminiAdapter(mockClient)
     expect(await adapter.complete('test prompt')).toBe('hello')
     expect(mockClient.getGenerativeModel).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'gemini-2.0-flash' })
+      expect.objectContaining({ model: 'gemini-3.6-flash' })
     )
   })
 
@@ -63,5 +63,17 @@ describe('geminiAdapter', () => {
   it('returns text for finishReason STOP', async () => {
     const client = clientReturning({ candidates: [{ finishReason: 'STOP' }], text: () => 'ok' })
     expect(await geminiAdapter(client).complete('test')).toBe('ok')
+  })
+
+  it('does not lower the temperature by default', async () => {
+    const client = clientReturning({ candidates: [{ finishReason: 'STOP' }], text: () => 'ok' })
+    await geminiAdapter(client).complete('test')
+    expect(client.getGenerativeModel.mock.calls[0]![0].generationConfig.temperature).toBeUndefined()
+  })
+
+  it('passes an explicit temperature', async () => {
+    const client = clientReturning({ candidates: [{ finishReason: 'STOP' }], text: () => 'ok' })
+    await geminiAdapter(client, { temperature: 0.4 }).complete('test')
+    expect(client.getGenerativeModel.mock.calls[0]![0].generationConfig.temperature).toBe(0.4)
   })
 })
