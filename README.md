@@ -129,7 +129,7 @@ import { openaiAdapter } from 'nestjs-ai'
 import OpenAI from 'openai'
 
 AiModule.forRoot({
-  adapter: openaiAdapter(new OpenAI(), { model: 'gpt-4o-mini' }),
+  adapter: openaiAdapter(new OpenAI(), { model: 'gpt-6-luna' }),
 })
 ```
 
@@ -140,7 +140,7 @@ import { anthropicAdapter } from 'nestjs-ai'
 import Anthropic from '@anthropic-ai/sdk'
 
 AiModule.forRoot({
-  adapter: anthropicAdapter(new Anthropic(), { model: 'claude-haiku-4-5-20251001' }),
+  adapter: anthropicAdapter(new Anthropic(), { model: 'claude-opus-5-5' }),
 })
 ```
 
@@ -201,10 +201,10 @@ Use different providers or models in the same application:
 @Module({
   imports: [
     AiModule.register('fast', {
-      adapter: openaiAdapter(new OpenAI(), { model: 'gpt-4o-mini' }),
+      adapter: openaiAdapter(new OpenAI(), { model: 'gpt-4.1-mini' }),
     }),
     AiModule.register('smart', {
-      adapter: openaiAdapter(new OpenAI(), { model: 'gpt-4o' }),
+      adapter: openaiAdapter(new OpenAI(), { model: 'gpt-6-luna' }),
     }),
   ],
 })
@@ -283,6 +283,17 @@ Provider errors with a 4xx status (invalid API key, unknown model, bad request) 
 since they fail the same way every time. Rate limits (429), timeouts (408), conflicts (409),
 server errors and network errors are retried. The OpenAI and Anthropic SDKs also retry
 rate limits with backoff on their own before the error reaches `nestjs-ai`.
+
+When the provider answers but the answer can't be used, the adapter throws an `AiResponseError`
+(available as `AiError.cause`), which is not retried because the same request fails the same way:
+
+| `reason` | When |
+|---|---|
+| `truncated` | The output token limit was hit (`max_tokens` / `length` / `MAX_TOKENS`). Increase `maxTokens`. |
+| `refusal` | The model declined the request. `detail` holds the refusal category or text. |
+| `blocked` | A content/safety filter blocked the prompt or the answer. `detail` holds the provider's reason. |
+
+Truncated answers are never passed on, so a cut-off JSON is not "repaired" into partial data.
 
 ---
 
@@ -382,16 +393,30 @@ AiModule.forRoot({ adapter: myAdapter })
 
 | Function | Package | Default model |
 |---|---|---|
-| `openaiAdapter(client, opts?)` | `openai` | `gpt-4o-mini` |
-| `anthropicAdapter(client, opts?)` | `@anthropic-ai/sdk` | `claude-haiku-4-5-20251001` |
-| `geminiAdapter(client, opts?)` | `@google/generative-ai` | `gemini-2.0-flash` |
+| `openaiAdapter(client, opts?)` | `openai` | `gpt-6-luna` |
+| `anthropicAdapter(client, opts?)` | `@anthropic-ai/sdk` | `claude-opus-5-5` |
+| `geminiAdapter(client, opts?)` | `@google/generative-ai` | `gemini-3.6-flash` |
 | `ollamaAdapter(opts?)` | `openai` (via baseURL) | `llama3.2` |
 
 All adapters accept `{ model?, temperature?, maxTokens? }` defaults (`ollamaAdapter` also takes `baseUrl`).
 Per-call options and `AiModuleOptions` defaults take precedence over adapter defaults.
 
-For OpenAI reasoning models (`o1`, `o3`, `o4-mini`, `gpt-5`…), `openaiAdapter` sends `max_completion_tokens`
-instead of `max_tokens` and omits the default temperature, which these models reject.
+Provider notes:
+
+- **OpenAI.** For reasoning models (`o1`, `o3`, `o4-mini`, `gpt-5` and later, including the default
+  `gpt-6-luna`), `openaiAdapter` sends `max_completion_tokens` instead of `max_tokens` and omits the
+  default temperature, which these models reject. Other models get `temperature: 0` unless set.
+  A leading `<think>…</think>` block (thinking models on Ollama/vLLM) is stripped from the answer.
+- **Anthropic.** `temperature` is never sent: Claude 4.7+ models accept only the default sampling
+  settings, and `@anthropic-ai/sdk` >= 1.0.0 (API version `2026-10-21`) rejects it on every model.
+  The `temperature` option is deprecated and ignored. `max_tokens` defaults to 16000, since current
+  models think by default and thinking counts toward the limit. For `claude-fable-5-1`,
+  `claude-opus-5-5`, `claude-opus-5` and `claude-sonnet-5-5` the adapter enables Anthropic's
+  server-side refusal fallback (`fallbacks: "default"`), so a declined request is re-run on a
+  fallback model in the same call. It is skipped for Bedrock, Vertex and Foundry clients; turn it off
+  with `anthropicAdapter(client, { refusalFallback: false })`.
+- **Gemini.** `temperature` is sent only when set: Google recommends keeping Gemini 3 models at the
+  default temperature, as lower values can cause looping.
 
 ---
 
