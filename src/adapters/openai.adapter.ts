@@ -10,6 +10,11 @@ const DEFAULT_TEMPERATURE = 0
  * models. Matches provider-prefixed ids too.
  */
 const REASONING_MODEL_RE = /(?:^|\/)(?:o\d|gpt-(?:[5-9]|[1-9]\d))(?![\w.-]*-chat)/i
+/**
+ * Thinking models served through OpenAI-compatible APIs (Ollama, vLLM: qwen3, deepseek-r1…)
+ * may put their reasoning inline as a leading <think>…</think> block. It is not part of the answer.
+ */
+const LEADING_THINK_BLOCK_RE = /^\s*<think>[\s\S]*?<\/think>\s*/
 
 export interface OpenAiAdapterOptions {
   model?: string
@@ -56,7 +61,8 @@ export function openaiAdapter(
       if (choice?.finish_reason === 'content_filter') {
         throw new AiResponseError('OpenAI content filter blocked the response', 'openai', 'blocked', 'content_filter')
       }
-      const content = choice?.message?.content
+      const raw: string | null | undefined = choice?.message?.content
+      const content = raw?.replace(LEADING_THINK_BLOCK_RE, '')
       if (!content) throw new Error('OpenAI returned an empty response')
       return content
     },

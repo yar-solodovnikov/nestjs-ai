@@ -90,6 +90,25 @@ describe('openaiAdapter', () => {
     expect(err).toMatchObject({ reason: 'blocked', detail: 'content_filter' })
   })
 
+  it('strips a leading <think> block from the content', async () => {
+    const { create, client } = mockOpenAi()
+    const content = ['<think>', 'maybe {"a":0}?', '</think>', '', '{"a":1}'].join('\n')
+    create.mockResolvedValue({ choices: [{ finish_reason: 'stop', message: { content } }] })
+    expect(await openaiAdapter(client).complete('test')).toBe('{"a":1}')
+  })
+
+  it('keeps <think> text that is not a leading block', async () => {
+    const { create, client } = mockOpenAi()
+    create.mockResolvedValue({ choices: [{ finish_reason: 'stop', message: { content: 'use the <think></think> tag' } }] })
+    expect(await openaiAdapter(client).complete('test')).toBe('use the <think></think> tag')
+  })
+
+  it('treats a response that is only a <think> block as empty', async () => {
+    const { create, client } = mockOpenAi()
+    create.mockResolvedValue({ choices: [{ finish_reason: 'stop', message: { content: '<think>hmm</think>' } }] })
+    await expect(openaiAdapter(client).complete('test')).rejects.toThrow('empty response')
+  })
+
   it('uses maxTokens from adapter defaults when not overridden per call', async () => {
     const { create, client } = mockOpenAi()
     await openaiAdapter(client, { maxTokens: 50 }).complete('test')
