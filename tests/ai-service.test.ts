@@ -72,4 +72,20 @@ describe('AiService', () => {
     await service.parse({ schema: z.object({ value: z.number() }), prompt: 'test', retries: 3, onRetry })
     expect(onRetry).toHaveBeenCalledOnce()
   })
+
+  it('chat() reports request and successful response to the logger', async () => {
+    const logger = { onRequest: vi.fn(), onResponse: vi.fn() }
+    const service = new AiService({ adapter: makeAdapter(), logger, defaultModel: 'm' })
+    await service.chat('hello')
+    expect(logger.onRequest).toHaveBeenCalledWith(expect.objectContaining({ prompt: 'hello', attempt: 1, adapterOptions: { model: 'm' } }))
+    expect(logger.onResponse).toHaveBeenCalledWith(expect.objectContaining({ prompt: 'hello', success: true }))
+  })
+
+  it('chat() reports a failed response to the logger and rethrows', async () => {
+    const logger = { onResponse: vi.fn() }
+    const adapter: IAiAdapter = { async complete() { throw new Error('down') } }
+    const service = new AiService({ adapter, logger })
+    await expect(service.chat('hello')).rejects.toThrow('down')
+    expect(logger.onResponse).toHaveBeenCalledWith(expect.objectContaining({ success: false, error: 'down' }))
+  })
 })

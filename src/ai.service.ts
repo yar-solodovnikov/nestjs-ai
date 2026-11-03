@@ -58,7 +58,19 @@ export class AiService {
    * Sends a plain prompt and returns the raw string response.
    */
   async chat(prompt: string, options?: AdapterCallOptions): Promise<string> {
-    return this.adapter.complete(prompt, this.mergeAdapterOptions(options))
+    const adapterOptions = this.mergeAdapterOptions(options)
+    const attempt = 1
+    this.logger?.onRequest?.({ prompt, attempt, adapterOptions: adapterOptions as Record<string, unknown> })
+    const start = Date.now()
+    try {
+      const response = await this.adapter.complete(prompt, adapterOptions)
+      this.logger?.onResponse?.({ prompt, attempt, durationMs: Date.now() - start, success: true })
+      return response
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.logger?.onResponse?.({ prompt, attempt, durationMs: Date.now() - start, success: false, error: message })
+      throw error
+    }
   }
 
   private mergeAdapterOptions(overrides?: AdapterCallOptions): AdapterCallOptions {
