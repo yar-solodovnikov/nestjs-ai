@@ -1,4 +1,5 @@
 import type { IAiAdapter, AdapterCallOptions } from './adapter.interface'
+import { AiResponseError } from './response-error'
 
 const DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
 const DEFAULT_MAX_TOKENS = 1024
@@ -30,7 +31,20 @@ export function anthropicAdapter(
         max_tokens: options.maxTokens ?? defaults.maxTokens ?? DEFAULT_MAX_TOKENS,
         messages: [{ role: 'user', content: prompt }],
       })
-      // The response may start with non-text blocks (e.g. "thinking" with extended thinking enabled).
+      if (response.stop_reason === 'refusal') {
+        const category: string | undefined = response.stop_details?.category ?? undefined
+        throw new AiResponseError(
+          `Anthropic declined the request${category ? ` (category: ${category})` : ''}`,
+          'anthropic', 'refusal', category,
+        )
+      }
+      if (response.stop_reason === 'max_tokens') {
+        throw new AiResponseError(
+          'Anthropic response was cut off by max_tokens; increase maxTokens',
+          'anthropic', 'truncated', 'max_tokens',
+        )
+      }
+      // The response may start with non-text blocks ("thinking" is on by default on current models).
       const text = (response.content as Array<{ type: string, text?: string }>)
         .filter(block => block.type === 'text')
         .map(block => block.text ?? '')

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { openaiAdapter } from '../src/adapters/openai.adapter'
 import { anthropicAdapter } from '../src/adapters/anthropic.adapter'
+import { AiResponseError } from '../src/adapters/response-error'
 
 describe('openaiAdapter', () => {
   it('calls client.chat.completions.create and returns content', async () => {
@@ -113,6 +114,28 @@ describe('anthropicAdapter', () => {
       messages: { create: vi.fn().mockResolvedValue({ content: [{ type: 'tool_use' }] }) },
     }
     await expect(anthropicAdapter(mockClient).complete('test')).rejects.toThrow('empty response')
+  })
+
+  it('throws a non-retryable AiResponseError when the answer was cut off by max_tokens', async () => {
+    const create = vi.fn().mockResolvedValue({
+      stop_reason: 'max_tokens',
+      content: [{ type: 'text', text: '{"items":[1,2' }],
+    })
+    const err = await anthropicAdapter({ messages: { create } }).complete('test').catch(e => e)
+    expect(err).toBeInstanceOf(AiResponseError)
+    expect(err).toMatchObject({ provider: 'anthropic', reason: 'truncated', retryable: false })
+  })
+
+  it('throws AiResponseError with the refusal category on stop_reason refusal', async () => {
+    const create = vi.fn().mockResolvedValue({
+      stop_reason: 'refusal',
+      stop_details: { type: 'refusal', category: 'cyber', explanation: '...' },
+      content: [],
+    })
+    const err = await anthropicAdapter({ messages: { create } }).complete('test').catch(e => e)
+    expect(err).toBeInstanceOf(AiResponseError)
+    expect(err).toMatchObject({ reason: 'refusal', detail: 'cyber' })
+    expect(err.message).toContain('cyber')
   })
 
   it('never sends temperature, even when one is configured', async () => {
