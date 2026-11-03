@@ -424,6 +424,43 @@ Provider notes:
 
 ---
 
+## Migrating from 1.x
+
+2.0 keeps the public API (imports, options, signatures), but changes runtime behavior:
+
+**Errors that were not thrown before**
+
+- Adapters throw `AiResponseError` when the answer was truncated by the token limit, refused, or
+  blocked by a content filter. `chat()` used to return the partial or empty text in these cases and
+  now throws; `parse()` fails right away instead of retrying (see [Error handling](#error-handling)).
+- Provider errors with a 4xx status other than 408, 409 and 429 are no longer retried.
+- `retries` must be an integer >= 1; other values throw a `RangeError`.
+- `geminiAdapter` throws a `TypeError` when created with something that is not a Gemini client
+  instance (for example the class itself), instead of failing on the first request.
+
+**New defaults** (only matter if you do not set them yourself)
+
+| Adapter | 1.x | 2.0 |
+|---|---|---|
+| `openaiAdapter` model | `gpt-4o-mini` | `gpt-6-luna` |
+| `anthropicAdapter` model | `claude-haiku-4-5-20251001` | `claude-opus-5-5` |
+| `anthropicAdapter` `max_tokens` | 1024 | 16000 |
+| `geminiAdapter` model | `gemini-2.0-flash` (shut down) | `gemini-3.6-flash` |
+| Temperature | 0 | OpenAI non-reasoning models: 0. Reasoning models and Gemini: provider default. Anthropic: never sent. |
+
+The new default models cost more per token than the 1.x ones. To keep costs and behavior
+predictable, set `model` (and `maxTokens`) explicitly.
+
+**Other changes**
+
+- `anthropicAdapter` ignores `temperature` and enables the server-side refusal fallback on
+  supported models; pass `refusalFallback: false` to turn it off.
+- `geminiAdapter` accepts a `GoogleGenAI` client from `@google/genai`. The legacy
+  `@google/generative-ai` client keeps working.
+- CommonJS consumers get their own type declarations (`index.d.cts`).
+
+---
+
 ## License
 
 MIT
