@@ -34,7 +34,7 @@ describe('runWithRetry — parse error path', () => {
   })
 
   it('lastRaw contains the adapter response even when parseJson throws', async () => {
-    const err: AiError = await runWithRetry({ adapter: okAdapter, schema: UserSchema, prompt: 'test', retries: 1 })
+    const err: InstanceType<typeof AiError> = await runWithRetry({ adapter: okAdapter, schema: UserSchema, prompt: 'test', retries: 1 })
       .catch(e => e)
     expect(err.lastRaw).toBe('{"name":"John","age":25}')
   })
