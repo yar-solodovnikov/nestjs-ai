@@ -196,6 +196,15 @@ describe('anthropicAdapter', () => {
     expect(err).toMatchObject({ provider: 'anthropic', reason: 'truncated', retryable: false })
   })
 
+  it('throws a truncated AiResponseError when the context window filled up', async () => {
+    const create = vi.fn().mockResolvedValue({
+      stop_reason: 'model_context_window_exceeded',
+      content: [{ type: 'text', text: '{"items":[1,2' }],
+    })
+    const err = await anthropicAdapter({ messages: { create } }).complete('test').catch(e => e)
+    expect(err).toMatchObject({ provider: 'anthropic', reason: 'truncated', detail: 'model_context_window_exceeded' })
+  })
+
   it('throws AiResponseError with the refusal category on stop_reason refusal', async () => {
     const create = vi.fn().mockResolvedValue({
       stop_reason: 'refusal',

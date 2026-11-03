@@ -66,6 +66,12 @@ export function anthropicAdapter(
           'anthropic', 'truncated', 'max_tokens',
         )
       }
+      if (response.stop_reason === 'model_context_window_exceeded') {
+        throw new AiResponseError(
+          'Anthropic response was cut off because the context window is full; shorten the prompt',
+          'anthropic', 'truncated', 'model_context_window_exceeded',
+        )
+      }
       // The response may start with non-text blocks ("thinking" is on by default on current models).
       const text = (response.content as Array<{ type: string, text?: string }>)
         .filter(block => block.type === 'text')

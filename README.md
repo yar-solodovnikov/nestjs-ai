@@ -294,7 +294,7 @@ When the provider answers but the answer can't be used, the adapter throws an `A
 
 | `reason` | When |
 |---|---|
-| `truncated` | The output token limit was hit (`max_tokens` / `length` / `MAX_TOKENS`). Increase `maxTokens`. |
+| `truncated` | The output token limit was hit (`max_tokens` / `length` / `MAX_TOKENS`); increase `maxTokens`. For Anthropic also `model_context_window_exceeded`: the prompt left no room for the answer. |
 | `refusal` | The model declined the request. `detail` holds the refusal category or text. |
 | `blocked` | A content/safety filter blocked the prompt or the answer. `detail` holds the provider's reason. |
 
