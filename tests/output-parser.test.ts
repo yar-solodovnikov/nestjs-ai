@@ -49,4 +49,38 @@ describe('parseJson', () => {
     // jsonrepair repairs "true" → valid JSON
     expect(parseJson('true')).toBe(true)
   })
+
+  const fence = '```'
+
+  it('strips code blocks with any language tag', () => {
+    expect(parseJson(`${fence}js\n{"a":1}\n${fence}`)).toEqual({ a: 1 })
+    expect(parseJson(`${fence}jsonc\n{"a":1}\n${fence}`)).toEqual({ a: 1 })
+    expect(parseJson(`${fence}JSON\n{"a":1}\n${fence}`)).toEqual({ a: 1 })
+  })
+
+  it('keeps backtick fences that appear inside JSON strings', () => {
+    const json = JSON.stringify({ code: `${fence}x${fence}` })
+    expect(parseJson(`${fence}json\n${json}\n${fence}`)).toEqual({ code: `${fence}x${fence}` })
+  })
+
+  it('parses a fenced primitive value', () => {
+    expect(parseJson(`${fence}\n"hello"\n${fence}`)).toBe('hello')
+    expect(parseJson(`${fence}true${fence}`)).toBe(true)
+  })
+
+  it('ignores bracketed prose before the JSON', () => {
+    expect(parseJson('[Note] here is the result: {"a":1}')).toEqual({ a: 1 })
+  })
+
+  it('ignores closing braces in trailing prose', () => {
+    expect(parseJson('Answer {"a":1}. Hope that helps :}')).toEqual({ a: 1 })
+  })
+
+  it('ignores braces inside JSON strings', () => {
+    expect(parseJson('Result: {"text":"use } and ] freely"} done')).toEqual({ text: 'use } and ] freely' })
+  })
+
+  it('still repairs a truncated object', () => {
+    expect(parseJson('Here: {"name":"John","tags":["a"')).toEqual({ name: 'John', tags: ['a'] })
+  })
 })
