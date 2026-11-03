@@ -73,6 +73,34 @@ describe('AiService', () => {
     expect(onRetry).toHaveBeenCalledOnce()
   })
 
+  it('parse() uses defaultRetryDelay and lets a per-call retryDelay override it', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(Math, 'random').mockReturnValue(1)
+    try {
+      let calls = 0
+      const flaky: IAiAdapter = {
+        async complete() {
+          calls++
+          if (calls % 2 === 1) throw Object.assign(new Error('busy'), { status: 503 })
+          return '{"value":1}'
+        },
+      }
+      const service = new AiService({ adapter: flaky, defaultRetryDelay: 500 })
+      const first = service.parse({ schema: z.object({ value: z.number() }), prompt: 'test' })
+      await vi.advanceTimersByTimeAsync(499)
+      expect(calls).toBe(1)
+      await vi.advanceTimersByTimeAsync(1)
+      await first
+      expect(calls).toBe(2)
+
+      await service.parse({ schema: z.object({ value: z.number() }), prompt: 'test', retryDelay: 0 })
+      expect(calls).toBe(4)
+    } finally {
+      vi.restoreAllMocks()
+      vi.useRealTimers()
+    }
+  })
+
   it('chat() reports request and successful response to the logger', async () => {
     const logger = { onRequest: vi.fn(), onResponse: vi.fn() }
     const service = new AiService({ adapter: makeAdapter(), logger, defaultModel: 'm' })

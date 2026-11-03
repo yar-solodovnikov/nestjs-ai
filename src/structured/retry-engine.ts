@@ -27,9 +27,18 @@ export interface RetryOptions<T extends ZodTypeAny> {
   onRetry?: (attempt: number, error: Error) => void
   adapterOptions?: AdapterCallOptions
   logger?: AiLogger
+  /**
+   * Base delay in ms before retrying after a provider error (rate limit, server or network error).
+   * Doubles with each attempt, with jitter, up to 30 s. Invalid JSON and validation failures are
+   * retried right away. 0 disables the delay. Default: 1000.
+   */
+  retryDelay?: number
 }
 
 export const DEFAULT_RETRIES = 3
+export const DEFAULT_RETRY_DELAY_MS = 1000
+const MAX_RETRY_DELAY_MS = 30_000
+const BACKOFF_FACTOR = 2
 const MAX_RAW_IN_PROMPT = 500
 const MAX_ZOD_ERROR_IN_PROMPT = 500
 const HTTP_CLIENT_ERROR_MIN = 400
@@ -54,6 +63,17 @@ function isRetryableAdapterError(error: unknown): boolean {
   return true
 }
 
+/** Exponential backoff with "equal jitter": between half and the full doubled delay. */
+function backoffDelay(baseMs: number, attempt: number): number {
+  const exponential = Math.min(baseMs * BACKOFF_FACTOR ** (attempt - 1), MAX_RETRY_DELAY_MS)
+  const half = exponential / BACKOFF_FACTOR
+  return half + Math.random() * half
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 function toError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value))
 }
@@ -61,9 +81,12 @@ function toError(value: unknown): Error {
 export async function runWithRetry<T extends ZodTypeAny>(
   options: RetryOptions<T>,
 ): Promise<z.infer<T>> {
-  const { adapter, schema, retries = DEFAULT_RETRIES, onRetry, adapterOptions, logger } = options
+  const { adapter, schema, retries = DEFAULT_RETRIES, retryDelay = DEFAULT_RETRY_DELAY_MS, onRetry, adapterOptions, logger } = options
   if (!Number.isInteger(retries) || retries < 1) {
     throw new RangeError(`retries must be an integer >= 1 (total number of attempts), got ${retries}`)
+  }
+  if (!Number.isFinite(retryDelay) || retryDelay < 0) {
+    throw new RangeError(`retryDelay must be a number of milliseconds >= 0, got ${retryDelay}`)
   }
 
   const schemaHint = zodToPrompt(schema)
@@ -91,6 +114,7 @@ export async function runWithRetry<T extends ZodTypeAny>(
       if (hasMoreAttempts) {
         onRetry?.(attempt, error)
         logger?.onRetry?.(attempt, error)
+        if (retryDelay > 0) await sleep(backoffDelay(retryDelay, attempt))
       }
       continue
     }

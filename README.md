@@ -284,8 +284,10 @@ try {
 
 Provider errors with a 4xx status (invalid API key, unknown model, bad request) are not retried,
 since they fail the same way every time. Rate limits (429), timeouts (408), conflicts (409),
-server errors and network errors are retried. The OpenAI and Anthropic SDKs also retry
-rate limits with backoff on their own before the error reaches `nestjs-ai`.
+server errors and network errors are retried after a pause: `retryDelay` (default 1000 ms), doubled
+with each attempt, with jitter, up to 30 s. Invalid JSON and validation failures are retried right
+away. The OpenAI and Anthropic SDKs also retry rate limits with backoff on their own before the
+error reaches `nestjs-ai`; the Gemini SDKs do not by default.
 
 When the provider answers but the answer can't be used, the adapter throws an `AiResponseError`
 (available as `AiError.cause`), which is not retried because the same request fails the same way:
@@ -376,6 +378,7 @@ AiModule.forRoot({ adapter: myAdapter })
 |---|---|---|---|
 | `adapter` | `IAiAdapter` | required | Provider adapter |
 | `defaultRetries` | `number` | `3` | Default total number of attempts for `parse()` (integer >= 1) |
+| `defaultRetryDelay` | `number` | `1000` | Base delay in ms before retrying after a provider error (0 disables it) |
 | `defaultModel` | `string` | adapter default | Default model |
 | `defaultTemperature` | `number` | adapter default | Default temperature |
 | `defaultMaxTokens` | `number` | adapter default | Default max tokens |
@@ -389,6 +392,7 @@ AiModule.forRoot({ adapter: myAdapter })
 | `schema` | `ZodTypeAny` | required | Zod schema for validation |
 | `prompt` | `string` | required | Prompt text |
 | `retries` | `number` | `defaultRetries` | Override the total number of attempts (integer >= 1) |
+| `retryDelay` | `number` | `defaultRetryDelay` | Override the base retry delay in ms for this call |
 | `model` | `string` | `defaultModel` | Override model for this call |
 | `temperature` | `number` | `defaultTemperature` | Override temperature |
 | `maxTokens` | `number` | `defaultMaxTokens` | Override max tokens for this call |
@@ -439,7 +443,9 @@ Provider notes:
   now throws; `parse()` fails right away instead of retrying (see [Error handling](#error-handling)).
 - `parse()` no longer completes a JSON value that was cut off (`{"name":"John","tags":["a"`); the
   attempt fails and is retried. Malformed but complete JSON is still repaired.
-- Provider errors with a 4xx status other than 408, 409 and 429 are no longer retried.
+- Provider errors with a 4xx status other than 408, 409 and 429 are no longer retried. The ones that
+  are retried now wait first (`retryDelay`, default 1000 ms, growing with each attempt); pass
+  `retryDelay: 0` (or `defaultRetryDelay: 0`) for the old immediate retries.
 - `retries` must be an integer >= 1; other values throw a `RangeError`.
 - `geminiAdapter` throws a `TypeError` when created with something that is not a Gemini client
   instance (for example the class itself), instead of failing on the first request.

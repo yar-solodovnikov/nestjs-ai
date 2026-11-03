@@ -8,6 +8,8 @@ import { runWithRetry, DEFAULT_RETRIES, type RetryOptions } from './structured/r
 export interface AiModuleOptions {
   adapter: IAiAdapter
   defaultRetries?: number
+  /** Base delay in ms before retrying after a provider error; see ParseOptions.retryDelay. Default: 1000. */
+  defaultRetryDelay?: number
   defaultModel?: string
   defaultTemperature?: number
   defaultMaxTokens?: number
@@ -19,6 +21,11 @@ export interface AiModuleOptions {
 
 export interface ParseOptions extends AdapterCallOptions {
   retries?: number
+  /**
+   * Base delay in ms before retrying after a provider error (rate limit, server or network error).
+   * Doubles with each attempt, with jitter, up to 30 s. 0 disables it.
+   */
+  retryDelay?: number
   onRetry?: (attempt: number, error: Error) => void
 }
 
@@ -47,6 +54,7 @@ export class AiService {
       schema: params.schema,
       prompt: params.prompt,
       retries: params.retries ?? this.defaultRetries,
+      retryDelay: params.retryDelay ?? this.options.defaultRetryDelay,
       adapterOptions: this.mergeAdapterOptions(params),
       logger: this.logger,
     }
