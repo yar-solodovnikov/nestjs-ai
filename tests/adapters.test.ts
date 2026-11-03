@@ -35,6 +35,49 @@ describe('openaiAdapter', () => {
     await openaiAdapter(mockClient).complete('test', { model: 'gpt-4o', temperature: 0.5 })
     expect(create).toHaveBeenCalledWith(expect.objectContaining({ model: 'gpt-4o', temperature: 0.5 }))
   })
+
+  function mockOpenAi() {
+    const create = vi.fn().mockResolvedValue({ choices: [{ message: { content: 'ok' } }] })
+    return { create, client: { chat: { completions: { create } } } }
+  }
+
+  it('sends temperature 0 and max_tokens for regular chat models', async () => {
+    const { create, client } = mockOpenAi()
+    await openaiAdapter(client).complete('test', { model: 'gpt-4o', maxTokens: 100 })
+    const request = create.mock.calls[0]![0]
+    expect(request).toMatchObject({ temperature: 0, max_tokens: 100 })
+    expect(request).not.toHaveProperty('max_completion_tokens')
+  })
+
+  it('omits max_tokens when maxTokens is not set', async () => {
+    const { create, client } = mockOpenAi()
+    await openaiAdapter(client).complete('test')
+    expect(create.mock.calls[0]![0]).not.toHaveProperty('max_tokens')
+  })
+
+  it.each(['o1', 'o3-mini', 'o4-mini', 'gpt-5', 'gpt-5-mini', 'gpt-5.1', 'openai/o3'])(
+    'uses max_completion_tokens and no default temperature for reasoning model %s',
+    async model => {
+      const { create, client } = mockOpenAi()
+      await openaiAdapter(client).complete('test', { model, maxTokens: 100 })
+      const request = create.mock.calls[0]![0]
+      expect(request).toMatchObject({ max_completion_tokens: 100 })
+      expect(request).not.toHaveProperty('max_tokens')
+      expect(request).not.toHaveProperty('temperature')
+    },
+  )
+
+  it('treats gpt-5-chat models as regular chat models', async () => {
+    const { create, client } = mockOpenAi()
+    await openaiAdapter(client).complete('test', { model: 'gpt-5-chat-latest', maxTokens: 100 })
+    expect(create.mock.calls[0]![0]).toMatchObject({ temperature: 0, max_tokens: 100 })
+  })
+
+  it('still sends an explicit temperature to reasoning models', async () => {
+    const { create, client } = mockOpenAi()
+    await openaiAdapter(client, { model: 'o3', temperature: 1 }).complete('test')
+    expect(create.mock.calls[0]![0]).toMatchObject({ temperature: 1 })
+  })
 })
 
 describe('anthropicAdapter', () => {

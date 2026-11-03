@@ -2,6 +2,12 @@ import type { IAiAdapter, AdapterCallOptions } from './adapter.interface'
 
 const DEFAULT_MODEL = 'gpt-4o-mini'
 const DEFAULT_TEMPERATURE = 0
+/**
+ * Reasoning models (o1, o3, o4-mini, gpt-5…) reject `max_tokens` and any temperature other than
+ * the default, so they need `max_completion_tokens` and no temperature unless set explicitly.
+ * `gpt-5-chat-*` variants behave like regular chat models. Matches provider-prefixed ids too.
+ */
+const REASONING_MODEL_RE = /(?:^|\/)(?:o\d|gpt-5)(?![\w.-]*-chat)/i
 
 export interface OpenAiAdapterOptions {
   model?: string
@@ -19,12 +25,20 @@ export function openaiAdapter(
 ): IAiAdapter {
   return {
     async complete(prompt: string, options: AdapterCallOptions = {}): Promise<string> {
-      const response = await client.chat.completions.create({
-        model: options.model ?? defaults.model ?? DEFAULT_MODEL,
-        temperature: options.temperature ?? defaults.temperature ?? DEFAULT_TEMPERATURE,
-        max_tokens: options.maxTokens,
+      const model = options.model ?? defaults.model ?? DEFAULT_MODEL
+      const isReasoningModel = REASONING_MODEL_RE.test(model)
+      const temperature = options.temperature ?? defaults.temperature
+        ?? (isReasoningModel ? undefined : DEFAULT_TEMPERATURE)
+      const maxTokens = options.maxTokens
+
+      const request: Record<string, unknown> = {
+        model,
         messages: [{ role: 'user', content: prompt }],
-      })
+      }
+      if (temperature !== undefined) request.temperature = temperature
+      if (maxTokens !== undefined) request[isReasoningModel ? 'max_completion_tokens' : 'max_tokens'] = maxTokens
+
+      const response = await client.chat.completions.create(request)
       const content = response.choices[0]?.message?.content
       if (!content) throw new Error('OpenAI returned an empty response')
       return content
