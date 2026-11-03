@@ -31,17 +31,12 @@ describe('parseJson', () => {
     expect(parseJson('[1,2,3]')).toEqual([1, 2, 3])
   })
 
-  // Branch: opening brace found but no closing brace — slices from '{' to end
-  it('extracts from opening brace when no closing brace exists', () => {
-    // '{ ' → jsonrepair → '{}' → {}
-    const result = parseJson('prefix { ')
-    expect(result).toEqual({})
+  it('rejects an object that is opened but never closed', () => {
+    expect(() => parseJson('prefix { ')).toThrow('incomplete JSON')
   })
 
-  // Branch: opening bracket found but no closing bracket
-  it('extracts from opening bracket when no closing bracket exists', () => {
-    const result = parseJson('prefix [ ')
-    expect(result).toEqual([])
+  it('rejects an array that is opened but never closed', () => {
+    expect(() => parseJson('prefix [ ')).toThrow('incomplete JSON')
   })
 
   // Branch: no brace/bracket found — full text passed to jsonrepair
@@ -80,7 +75,25 @@ describe('parseJson', () => {
     expect(parseJson('Result: {"text":"use } and ] freely"} done')).toEqual({ text: 'use } and ] freely' })
   })
 
-  it('still repairs a truncated object', () => {
-    expect(parseJson('Here: {"name":"John","tags":["a"')).toEqual({ name: 'John', tags: ['a'] })
+  it('rejects a truncated object instead of repairing it into partial data', () => {
+    expect(() => parseJson('Here: {"name":"John","tags":["a"')).toThrow('incomplete JSON')
+  })
+
+  it('does not return a complete nested object from a truncated outer one', () => {
+    const raw = '{"name":"root","children":[{"name":"x","children":[]},{"name":"y","chi'
+    expect(() => parseJson(raw)).toThrow('incomplete JSON')
+  })
+
+  it('rejects a truncated value that follows a complete one', () => {
+    expect(() => parseJson('Example: {"a":"string"}. Answer: {"a":"x')).toThrow('incomplete JSON')
+  })
+
+  it('skips prose brackets that never close', () => {
+    expect(parseJson('Hmm :{ anyway, {"a":1}')).toEqual({ a: 1 })
+    expect(parseJson('[see below] and [note: {"a":1}')).toEqual({ a: 1 })
+  })
+
+  it('still repairs a complete but malformed object', () => {
+    expect(parseJson("Here: {'name':'John', tags:['a',],}")).toEqual({ name: 'John', tags: ['a'] })
   })
 })

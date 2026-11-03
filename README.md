@@ -297,6 +297,8 @@ When the provider answers but the answer can't be used, the adapter throws an `A
 | `blocked` | A content/safety filter blocked the prompt or the answer. `detail` holds the provider's reason. |
 
 Truncated answers are never passed on, so a cut-off JSON is not "repaired" into partial data.
+The parser follows the same rule for any adapter: a JSON value that is opened but never closed is
+treated as unparseable (and retried) instead of being completed or replaced by a nested fragment.
 
 ---
 
@@ -433,6 +435,8 @@ Provider notes:
 - Adapters throw `AiResponseError` when the answer was truncated by the token limit, refused, or
   blocked by a content filter. `chat()` used to return the partial or empty text in these cases and
   now throws; `parse()` fails right away instead of retrying (see [Error handling](#error-handling)).
+- `parse()` no longer completes a JSON value that was cut off (`{"name":"John","tags":["a"`); the
+  attempt fails and is retried. Malformed but complete JSON is still repaired.
 - Provider errors with a 4xx status other than 408, 409 and 429 are no longer retried.
 - `retries` must be an integer >= 1; other values throw a `RangeError`.
 - `geminiAdapter` throws a `TypeError` when created with something that is not a Gemini client
