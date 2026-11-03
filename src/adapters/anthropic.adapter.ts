@@ -2,11 +2,15 @@ import type { IAiAdapter, AdapterCallOptions } from './adapter.interface'
 
 const DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
 const DEFAULT_MAX_TOKENS = 1024
-const DEFAULT_TEMPERATURE = 0
 
 export interface AnthropicAdapterOptions {
   model?: string
   maxTokens?: number
+  /**
+   * @deprecated Ignored. Claude 4.7+ models accept only the default sampling settings, and
+   * Anthropic API version 2026-10-21 (sent by @anthropic-ai/sdk >= 1.0.0) rejects `temperature`
+   * on every model, so the adapter never sends it. Per-call `temperature` is ignored as well.
+   */
   temperature?: number
 }
 
@@ -24,7 +28,6 @@ export function anthropicAdapter(
       const response = await client.messages.create({
         model: options.model ?? defaults.model ?? DEFAULT_MODEL,
         max_tokens: options.maxTokens ?? defaults.maxTokens ?? DEFAULT_MAX_TOKENS,
-        temperature: options.temperature ?? defaults.temperature ?? DEFAULT_TEMPERATURE,
         messages: [{ role: 'user', content: prompt }],
       })
       // The response may start with non-text blocks (e.g. "thinking" with extended thinking enabled).

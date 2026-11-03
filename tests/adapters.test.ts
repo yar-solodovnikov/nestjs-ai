@@ -115,6 +115,13 @@ describe('anthropicAdapter', () => {
     await expect(anthropicAdapter(mockClient).complete('test')).rejects.toThrow('empty response')
   })
 
+  it('never sends temperature, even when one is configured', async () => {
+    const create = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
+    const adapter = anthropicAdapter({ messages: { create } }, { temperature: 0.2 })
+    await adapter.complete('test', { temperature: 0.7 })
+    expect(create.mock.calls[0]![0]).not.toHaveProperty('temperature')
+  })
+
   it('skips leading thinking blocks and joins all text blocks', async () => {
     const mockClient = {
       messages: {
