@@ -42,6 +42,7 @@ export function ollamaAdapter(options: OllamaAdapterOptions = {}): IAiAdapter {
       model: options.model ?? DEFAULT_OLLAMA_MODEL,
       temperature: options.temperature,
       maxTokens: options.maxTokens,
+      reasoning: options.reasoning,
     })
   }
 

@@ -137,6 +137,21 @@ describe('openaiAdapter', () => {
     expect(create.mock.calls[0]![0]).toMatchObject({ temperature: 0, max_tokens: 100 })
   })
 
+  it('treats any model as a reasoning model when reasoning is true', async () => {
+    const { create, client } = mockOpenAi()
+    await openaiAdapter(client, { model: 'my-prod-deploy', reasoning: true }).complete('test', { maxTokens: 100 })
+    const request = create.mock.calls[0]![0]
+    expect(request).toMatchObject({ model: 'my-prod-deploy', max_completion_tokens: 100 })
+    expect(request).not.toHaveProperty('temperature')
+    expect(request).not.toHaveProperty('max_tokens')
+  })
+
+  it('treats a matching model id as a regular chat model when reasoning is false', async () => {
+    const { create, client } = mockOpenAi()
+    await openaiAdapter(client, { model: 'o3', reasoning: false }).complete('test', { maxTokens: 100 })
+    expect(create.mock.calls[0]![0]).toMatchObject({ temperature: 0, max_tokens: 100 })
+  })
+
   it('still sends an explicit temperature to reasoning models', async () => {
     const { create, client } = mockOpenAi()
     await openaiAdapter(client, { model: 'o3', temperature: 1 }).complete('test')

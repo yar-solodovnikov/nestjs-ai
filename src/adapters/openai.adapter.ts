@@ -20,6 +20,12 @@ export interface OpenAiAdapterOptions {
   model?: string
   temperature?: number
   maxTokens?: number
+  /**
+   * Whether the model is a reasoning model (sends `max_completion_tokens`, no default temperature).
+   * Detected from the model id by default; set it when the id does not tell, e.g. an Azure
+   * deployment or a proxy alias such as `my-prod-deploy`. Applies to every model this adapter calls.
+   */
+  reasoning?: boolean
 }
 
 /**
@@ -34,7 +40,7 @@ export function openaiAdapter(
   return {
     async complete(prompt: string, options: AdapterCallOptions = {}): Promise<string> {
       const model = options.model ?? defaults.model ?? DEFAULT_MODEL
-      const isReasoningModel = REASONING_MODEL_RE.test(model)
+      const isReasoningModel = defaults.reasoning ?? REASONING_MODEL_RE.test(model)
       const temperature = options.temperature ?? defaults.temperature
         ?? (isReasoningModel ? undefined : DEFAULT_TEMPERATURE)
       const maxTokens = options.maxTokens ?? defaults.maxTokens

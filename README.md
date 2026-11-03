@@ -411,6 +411,8 @@ Provider notes:
 - **OpenAI.** For reasoning models (`o1`, `o3`, `o4-mini`, `gpt-5` and later, including the default
   `gpt-6-luna`), `openaiAdapter` sends `max_completion_tokens` instead of `max_tokens` and omits the
   default temperature, which these models reject. Other models get `temperature: 0` unless set.
+  The model type is detected from its id; when the id does not tell (an Azure deployment, a proxy
+  alias), pass `reasoning: true` (or `false`) to `openaiAdapter` / `ollamaAdapter`.
   A leading `<think>…</think>` block (thinking models on Ollama/vLLM) is stripped from the answer.
 - **Anthropic.** `temperature` is never sent: Claude 4.7+ models accept only the default sampling
   settings, and `@anthropic-ai/sdk` >= 1.0.0 (API version `2026-10-21`) rejects it on every model.
