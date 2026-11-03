@@ -56,7 +56,7 @@ describe('openaiAdapter', () => {
     expect(create.mock.calls[0]![0]).not.toHaveProperty('max_tokens')
   })
 
-  it.each(['o1', 'o3-mini', 'o4-mini', 'gpt-5', 'gpt-5-mini', 'gpt-5.1', 'openai/o3'])(
+  it.each(['o1', 'o3-mini', 'o4-mini', 'gpt-5', 'gpt-5-mini', 'gpt-5.1', 'gpt-6-luna', 'gpt-6.1-terra', 'openai/o3'])(
     'uses max_completion_tokens and no default temperature for reasoning model %s',
     async model => {
       const { create, client } = mockOpenAi()
@@ -74,6 +74,12 @@ describe('openaiAdapter', () => {
     expect(create.mock.calls[0]![0]).toMatchObject({ max_tokens: 50 })
     await openaiAdapter(client, { maxTokens: 50 }).complete('test', { maxTokens: 10 })
     expect(create.mock.calls[1]![0]).toMatchObject({ max_tokens: 10 })
+  })
+
+  it.each(['gpt-4o', 'gpt-4.1-mini', 'llama3.2', 'gpt-oss:20b'])('treats %s as a regular chat model', async model => {
+    const { create, client } = mockOpenAi()
+    await openaiAdapter(client).complete('test', { model, maxTokens: 100 })
+    expect(create.mock.calls[0]![0]).toMatchObject({ temperature: 0, max_tokens: 100 })
   })
 
   it('treats gpt-5-chat models as regular chat models', async () => {

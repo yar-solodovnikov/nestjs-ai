@@ -3,11 +3,12 @@ import type { IAiAdapter, AdapterCallOptions } from './adapter.interface'
 const DEFAULT_MODEL = 'gpt-4o-mini'
 const DEFAULT_TEMPERATURE = 0
 /**
- * Reasoning models (o1, o3, o4-mini, gpt-5…) reject `max_tokens` and any temperature other than
- * the default, so they need `max_completion_tokens` and no temperature unless set explicitly.
- * `gpt-5-chat-*` variants behave like regular chat models. Matches provider-prefixed ids too.
+ * Reasoning models (o1, o3, o4-mini, gpt-5 and later generations such as gpt-6-luna) reject
+ * `max_tokens` and any temperature other than the default, so they need `max_completion_tokens`
+ * and no temperature unless set explicitly. `gpt-5-chat-*` variants behave like regular chat
+ * models. Matches provider-prefixed ids too.
  */
-const REASONING_MODEL_RE = /(?:^|\/)(?:o\d|gpt-5)(?![\w.-]*-chat)/i
+const REASONING_MODEL_RE = /(?:^|\/)(?:o\d|gpt-(?:[5-9]|[1-9]\d))(?![\w.-]*-chat)/i
 
 export interface OpenAiAdapterOptions {
   model?: string
