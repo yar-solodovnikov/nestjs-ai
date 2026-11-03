@@ -57,7 +57,7 @@ npm install openai
 npm install @anthropic-ai/sdk
 
 # Gemini (free tier available)
-npm install @google/generative-ai
+npm install @google/genai
 ```
 
 For structured output:
@@ -148,12 +148,15 @@ AiModule.forRoot({
 
 ```ts
 import { geminiAdapter } from 'nestjs-ai'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleGenAI } from '@google/genai'
 
 AiModule.forRoot({
-  adapter: geminiAdapter(new GoogleGenerativeAI(process.env.GEMINI_API_KEY)),
+  adapter: geminiAdapter(new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })),
 })
 ```
+
+A legacy `@google/generative-ai` client (`new GoogleGenerativeAI(apiKey)`) still works, but that SDK
+reached end of support on 2025-08-31; prefer `@google/genai`.
 
 ### Ollama (local models)
 
@@ -395,7 +398,7 @@ AiModule.forRoot({ adapter: myAdapter })
 |---|---|---|
 | `openaiAdapter(client, opts?)` | `openai` | `gpt-6-luna` |
 | `anthropicAdapter(client, opts?)` | `@anthropic-ai/sdk` | `claude-opus-5-5` |
-| `geminiAdapter(client, opts?)` | `@google/generative-ai` | `gemini-3.6-flash` |
+| `geminiAdapter(client, opts?)` | `@google/genai` (or legacy `@google/generative-ai`) | `gemini-3.6-flash` |
 | `ollamaAdapter(opts?)` | `openai` (via baseURL) | `llama3.2` |
 
 All adapters accept `{ model?, temperature?, maxTokens? }` defaults (`ollamaAdapter` also takes `baseUrl`).
@@ -416,7 +419,8 @@ Provider notes:
   fallback model in the same call. It is skipped for Bedrock, Vertex and Foundry clients; turn it off
   with `anthropicAdapter(client, { refusalFallback: false })`.
 - **Gemini.** `temperature` is sent only when set: Google recommends keeping Gemini 3 models at the
-  default temperature, as lower values can cause looping.
+  default temperature, as lower values can cause looping. `geminiAdapter` detects the SDK from the
+  client: `GoogleGenAI` (`@google/genai`) or the legacy `GoogleGenerativeAI` (`@google/generative-ai`).
 
 ---
 
