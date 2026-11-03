@@ -8,6 +8,7 @@ import {
   InjectAi,
   consoleAiLogger,
   AiError,
+  AiResponseError,
   openaiAdapter,
   anthropicAdapter,
   ollamaAdapter,
@@ -21,6 +22,7 @@ describe('index exports', () => {
   it('exports InjectAi decorator', () => { expect(typeof InjectAi).toBe('function') })
   it('exports consoleAiLogger', () => { expect(consoleAiLogger).toBeDefined() })
   it('exports AiError', () => { expect(AiError).toBeDefined() })
+  it('exports AiResponseError', () => { expect(AiResponseError).toBeDefined() })
   it('exports openaiAdapter', () => { expect(typeof openaiAdapter).toBe('function') })
   it('exports anthropicAdapter', () => { expect(typeof anthropicAdapter).toBe('function') })
   it('exports ollamaAdapter', () => { expect(typeof ollamaAdapter).toBe('function') })

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { z } from 'zod'
+import { z, type ZodTypeAny } from 'zod'
+import * as z4 from 'zod/v4'
 import { zodToPrompt } from '../src/structured/zod-to-prompt'
 
 describe('zodToPrompt', () => {
@@ -82,9 +83,8 @@ describe('zodToPrompt', () => {
   })
 
   // Branch: unrecognized schema type falls back to 'unknown'
-  it('returns "unknown" for unsupported schema types like ZodLazy', () => {
-    // ZodLazy is not handled — used for recursive schemas
-    const schema = z.object({ ref: z.lazy(() => z.string()) })
+  it('returns "unknown" for schema types JSON cannot represent, like ZodMap', () => {
+    const schema = z.object({ ref: z.map(z.string(), z.number()) })
     const prompt = zodToPrompt(schema)
     expect(prompt).toContain('"ref": unknown')
   })
@@ -92,5 +92,129 @@ describe('zodToPrompt', () => {
   it('starts with the instruction line', () => {
     const schema = z.object({ x: z.string() })
     expect(zodToPrompt(schema)).toMatch(/^Return ONLY valid JSON/)
+  })
+
+  it('describes refined and transformed fields by their input type', () => {
+    const schema = z.object({
+      name: z.string().refine(s => s.length > 0),
+      count: z.number().transform(String),
+      trimmed: z.preprocess(v => v, z.string()),
+    })
+    const prompt = zodToPrompt(schema)
+    expect(prompt).toContain('"name": "string"')
+    expect(prompt).toContain('"count": number')
+    expect(prompt).toContain('"trimmed": "string"')
+  })
+
+  it('describes records, tuples and dates', () => {
+    const schema = z.object({ scores: z.record(z.number()), pair: z.tuple([z.string(), z.number()]), at: z.date() })
+    const prompt = zodToPrompt(schema)
+    expect(prompt).toContain('"scores": { [key: string]: number }')
+    expect(prompt).toContain('"pair": ["string", number]')
+    expect(prompt).toContain('"at": "ISO 8601 date string"')
+  })
+
+  it('describes discriminated unions', () => {
+    const schema = z.discriminatedUnion('kind', [
+      z.object({ kind: z.literal('a'), a: z.string() }),
+      z.object({ kind: z.literal('b'), b: z.number() }),
+    ])
+    const prompt = zodToPrompt(schema)
+    expect(prompt).toContain('"kind": "a"')
+    expect(prompt).toContain('"kind": "b"')
+  })
+
+  it('describes native enums without numeric reverse mappings', () => {
+    enum Color { Red, Green }
+    const prompt = zodToPrompt(z.object({ c: z.nativeEnum(Color), s: z.nativeEnum({ A: 'a', B: 'b' } as const) }))
+    expect(prompt).toContain('"c": 0 | 1')
+    expect(prompt).toContain('"s": "a" | "b"')
+  })
+
+  it('includes .describe() text', () => {
+    const prompt = zodToPrompt(z.object({ price: z.number().describe('price in USD') }))
+    expect(prompt).toContain('"price": number (price in USD)')
+  })
+
+  it('describes zod v4 schemas', () => {
+    const schema = z4.object({
+      name: z4.string(),
+      tags: z4.array(z4.string()),
+      role: z4.enum(['admin', 'user']),
+      kind: z4.literal('x'),
+      bio: z4.string().optional(),
+      note: z4.string().nullable(),
+      n: z4.number().transform(String),
+    })
+    const prompt = zodToPrompt(schema as unknown as ZodTypeAny)
+    expect(prompt).toContain('"name": "string"')
+    expect(prompt).toContain('"tags": ["string"]')
+    expect(prompt).toContain('"role": "admin" | "user"')
+    expect(prompt).toContain('"kind": "x"')
+    expect(prompt).toContain('"bio": "string" (optional, may be omitted)')
+    expect(prompt).toContain('"note": "string" | null')
+    expect(prompt).toContain('"n": number')
+  })
+})
+
+describe('zodToPrompt recursive and lazy schemas', () => {
+  const recursive = '(recursive: same structure as the enclosing value)'
+
+  it('describes a z.lazy() schema by its inner schema', () => {
+    const prompt = zodToPrompt(z.object({ name: z.lazy(() => z.string()) }))
+    expect(prompt).toContain('"name": "string"')
+  })
+
+  it('stops at the recursion point of a recursive zod v3 schema', () => {
+    interface Category { name: string, subcategories: Category[] }
+    const Category: z.ZodType<Category> = z.lazy(() => z.object({
+      name: z.string(),
+      subcategories: z.array(Category),
+    }))
+    const prompt = zodToPrompt(Category as unknown as ZodTypeAny)
+    expect(prompt).toContain('"name": "string"')
+    expect(prompt).toContain(`"subcategories": [${recursive}]`)
+  })
+
+  it('stops at the recursion point of a zod v4 getter-based recursive schema', () => {
+    const Node = z4.object({
+      value: z4.number(),
+      get next() { return Node.nullable() },
+    })
+    const prompt = zodToPrompt(Node as unknown as ZodTypeAny)
+    expect(prompt).toContain('"value": number')
+    expect(prompt).toContain(`"next": ${recursive} | null`)
+  })
+
+  it('describes a reused (non-recursive) schema in full every time', () => {
+    const Address = z.object({ city: z.string() })
+    const prompt = zodToPrompt(z.object({ home: Address, work: Address }))
+    expect(prompt).not.toContain(recursive)
+    expect(prompt.match(/"city": "string"/g)).toHaveLength(2)
+  })
+})
+
+describe('zodToPrompt wrapper and catch-all types', () => {
+  it('describes z.any() and z.unknown() as any', () => {
+    const prompt = zodToPrompt(z.object({ a: z.any(), u: z.unknown() }))
+    expect(prompt).toContain('"a": any')
+    expect(prompt).toContain('"u": any')
+  })
+
+  it('describes a branded schema by its base type', () => {
+    expect(zodToPrompt(z.object({ id: z.string().brand('UserId') }))).toContain('"id": "string"')
+  })
+
+  it('describes a zod v3 pipe by its input side', () => {
+    const schema = z.object({ n: z.string().pipe(z.coerce.number()) })
+    expect(zodToPrompt(schema)).toContain('"n": "string"')
+  })
+
+  it('describes an intersection as both sides joined with &', () => {
+    const schema = z.intersection(z.object({ a: z.string() }), z.object({ b: z.number() }))
+    const prompt = zodToPrompt(schema)
+    expect(prompt).toContain('"a": "string"')
+    expect(prompt).toContain('} & {')
+    expect(prompt).toContain('"b": number')
   })
 })

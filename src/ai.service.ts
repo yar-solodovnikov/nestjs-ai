@@ -8,6 +8,8 @@ import { runWithRetry, DEFAULT_RETRIES, type RetryOptions } from './structured/r
 export interface AiModuleOptions {
   adapter: IAiAdapter
   defaultRetries?: number
+  /** Base delay in ms before retrying after a provider error; see ParseOptions.retryDelay. Default: 1000. */
+  defaultRetryDelay?: number
   defaultModel?: string
   defaultTemperature?: number
   defaultMaxTokens?: number
@@ -19,6 +21,11 @@ export interface AiModuleOptions {
 
 export interface ParseOptions extends AdapterCallOptions {
   retries?: number
+  /**
+   * Base delay in ms before retrying after a provider error (rate limit, server or network error).
+   * Doubles with each attempt, with jitter, up to 30 s. 0 disables it.
+   */
+  retryDelay?: number
   onRetry?: (attempt: number, error: Error) => void
 }
 
@@ -47,6 +54,7 @@ export class AiService {
       schema: params.schema,
       prompt: params.prompt,
       retries: params.retries ?? this.defaultRetries,
+      retryDelay: params.retryDelay ?? this.options.defaultRetryDelay,
       adapterOptions: this.mergeAdapterOptions(params),
       logger: this.logger,
     }
@@ -58,7 +66,19 @@ export class AiService {
    * Sends a plain prompt and returns the raw string response.
    */
   async chat(prompt: string, options?: AdapterCallOptions): Promise<string> {
-    return this.adapter.complete(prompt, this.mergeAdapterOptions(options))
+    const adapterOptions = this.mergeAdapterOptions(options)
+    const attempt = 1
+    this.logger?.onRequest?.({ prompt, attempt, adapterOptions: adapterOptions as Record<string, unknown> })
+    const start = Date.now()
+    try {
+      const response = await this.adapter.complete(prompt, adapterOptions)
+      this.logger?.onResponse?.({ prompt, attempt, durationMs: Date.now() - start, success: true })
+      return response
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.logger?.onResponse?.({ prompt, attempt, durationMs: Date.now() - start, success: false, error: message })
+      throw error
+    }
   }
 
   private mergeAdapterOptions(overrides?: AdapterCallOptions): AdapterCallOptions {

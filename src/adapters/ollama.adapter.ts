@@ -14,6 +14,11 @@ export interface OllamaAdapterOptions extends OpenAiAdapterOptions {
  * Ollama is OpenAI-API-compatible — thin wrapper over openaiAdapter.
  * Uses dynamic import so the openai package is only loaded on first call.
  */
+function isModuleNotFound(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code
+  return code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND'
+}
+
 export function ollamaAdapter(options: OllamaAdapterOptions = {}): IAiAdapter {
   let adapterPromise: Promise<IAiAdapter> | null = null
 
@@ -22,9 +27,11 @@ export function ollamaAdapter(options: OllamaAdapterOptions = {}): IAiAdapter {
     try {
       const mod = await import('openai')
       OpenAI = mod.OpenAI
-    } catch {
+    } catch (error) {
+      if (!isModuleNotFound(error)) throw error
       throw new Error(
         'ollamaAdapter requires the openai package. Run: npm install openai',
+        { cause: error },
       )
     }
     const client = new OpenAI({
@@ -34,12 +41,18 @@ export function ollamaAdapter(options: OllamaAdapterOptions = {}): IAiAdapter {
     return openaiAdapter(client, {
       model: options.model ?? DEFAULT_OLLAMA_MODEL,
       temperature: options.temperature,
+      maxTokens: options.maxTokens,
+      reasoning: options.reasoning,
     })
   }
 
   return {
     async complete(prompt, callOptions) {
-      adapterPromise ??= createAdapter()
+      // Do not cache a failed initialization, so a later call can try again.
+      adapterPromise ??= createAdapter().catch((error: unknown) => {
+        adapterPromise = null
+        throw error
+      })
       const adapter = await adapterPromise
       return adapter.complete(prompt, callOptions)
     },

@@ -57,7 +57,7 @@ npm install openai
 npm install @anthropic-ai/sdk
 
 # Gemini (free tier available)
-npm install @google/generative-ai
+npm install @google/genai
 ```
 
 For structured output:
@@ -129,7 +129,7 @@ import { openaiAdapter } from 'nestjs-ai'
 import OpenAI from 'openai'
 
 AiModule.forRoot({
-  adapter: openaiAdapter(new OpenAI(), { model: 'gpt-4o-mini' }),
+  adapter: openaiAdapter(new OpenAI(), { model: 'gpt-6-luna' }),
 })
 ```
 
@@ -140,7 +140,7 @@ import { anthropicAdapter } from 'nestjs-ai'
 import Anthropic from '@anthropic-ai/sdk'
 
 AiModule.forRoot({
-  adapter: anthropicAdapter(new Anthropic(), { model: 'claude-haiku-4-5-20251001' }),
+  adapter: anthropicAdapter(new Anthropic(), { model: 'claude-opus-5-5' }),
 })
 ```
 
@@ -148,12 +148,15 @@ AiModule.forRoot({
 
 ```ts
 import { geminiAdapter } from 'nestjs-ai'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleGenAI } from '@google/genai'
 
 AiModule.forRoot({
-  adapter: geminiAdapter(new GoogleGenerativeAI(process.env.GEMINI_API_KEY)),
+  adapter: geminiAdapter(new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })),
 })
 ```
+
+A legacy `@google/generative-ai` client (`new GoogleGenerativeAI(apiKey)`) still works, but that SDK
+reached end of support on 2025-08-31; prefer `@google/genai`.
 
 ### Ollama (local models)
 
@@ -201,10 +204,10 @@ Use different providers or models in the same application:
 @Module({
   imports: [
     AiModule.register('fast', {
-      adapter: openaiAdapter(new OpenAI(), { model: 'gpt-4o-mini' }),
+      adapter: openaiAdapter(new OpenAI(), { model: 'gpt-4.1-mini' }),
     }),
     AiModule.register('smart', {
-      adapter: openaiAdapter(new OpenAI(), { model: 'gpt-4o' }),
+      adapter: openaiAdapter(new OpenAI(), { model: 'gpt-6-luna' }),
     }),
   ],
 })
@@ -257,6 +260,47 @@ Attempt 1: LLM returns { "age": "twenty five" }
 Zod error:  "age: Expected number, received string"
 Attempt 2: LLM receives the error -> returns { "age": 25 }
 ```
+
+Works with both zod v3 and zod v4 schemas.
+
+### Error handling
+
+When all attempts fail, `parse()` throws an `AiError`:
+
+```ts
+import { AiError } from 'nestjs-ai'
+
+try {
+  await this.ai.parse({ schema, prompt })
+} catch (err) {
+  if (err instanceof AiError) {
+    err.attempts      // attempts actually made
+    err.lastRaw       // last raw LLM response ('' if the provider never answered)
+    err.lastZodError  // validation error for lastRaw, if any
+    err.cause         // the underlying error of the last attempt (e.g. the SDK's APIError)
+  }
+}
+```
+
+Provider errors with a 4xx status (invalid API key, unknown model, bad request) are not retried,
+since they fail the same way every time. Rate limits (429), timeouts (408), conflicts (409),
+server errors and network errors are retried after a pause: `retryDelay` (default 1000 ms), doubled
+with each attempt, with jitter, up to 30 s. Invalid JSON and validation failures are retried right
+away. The OpenAI and Anthropic SDKs also retry rate limits with backoff on their own before the
+error reaches `nestjs-ai`; the Gemini SDKs do not by default.
+
+When the provider answers but the answer can't be used, the adapter throws an `AiResponseError`
+(available as `AiError.cause`), which is not retried because the same request fails the same way:
+
+| `reason` | When |
+|---|---|
+| `truncated` | The output token limit was hit (`max_tokens` / `length` / `MAX_TOKENS`); increase `maxTokens`. For Anthropic also `model_context_window_exceeded`: the prompt left no room for the answer. |
+| `refusal` | The model declined the request. `detail` holds the refusal category or text. |
+| `blocked` | A content/safety filter blocked the prompt or the answer. `detail` holds the provider's reason. |
+
+Truncated answers are never passed on, so a cut-off JSON is not "repaired" into partial data.
+The parser follows the same rule for any adapter: a JSON value that is opened but never closed is
+treated as unparseable (and retried) instead of being completed or replaced by a nested fragment.
 
 ---
 
@@ -333,7 +377,8 @@ AiModule.forRoot({ adapter: myAdapter })
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `adapter` | `IAiAdapter` | required | Provider adapter |
-| `defaultRetries` | `number` | `3` | Default retry count for `parse()` |
+| `defaultRetries` | `number` | `3` | Default total number of attempts for `parse()` (integer >= 1) |
+| `defaultRetryDelay` | `number` | `1000` | Base delay in ms before retrying after a provider error (0 disables it) |
 | `defaultModel` | `string` | adapter default | Default model |
 | `defaultTemperature` | `number` | adapter default | Default temperature |
 | `defaultMaxTokens` | `number` | adapter default | Default max tokens |
@@ -346,7 +391,8 @@ AiModule.forRoot({ adapter: myAdapter })
 |---|---|---|---|
 | `schema` | `ZodTypeAny` | required | Zod schema for validation |
 | `prompt` | `string` | required | Prompt text |
-| `retries` | `number` | `defaultRetries` | Override retry count |
+| `retries` | `number` | `defaultRetries` | Override the total number of attempts (integer >= 1) |
+| `retryDelay` | `number` | `defaultRetryDelay` | Override the base retry delay in ms for this call |
 | `model` | `string` | `defaultModel` | Override model for this call |
 | `temperature` | `number` | `defaultTemperature` | Override temperature |
 | `maxTokens` | `number` | `defaultMaxTokens` | Override max tokens for this call |
@@ -356,10 +402,75 @@ AiModule.forRoot({ adapter: myAdapter })
 
 | Function | Package | Default model |
 |---|---|---|
-| `openaiAdapter(client, opts?)` | `openai` | `gpt-4o-mini` |
-| `anthropicAdapter(client, opts?)` | `@anthropic-ai/sdk` | `claude-haiku-4-5-20251001` |
-| `geminiAdapter(client, opts?)` | `@google/generative-ai` | `gemini-2.0-flash` |
+| `openaiAdapter(client, opts?)` | `openai` | `gpt-6-luna` |
+| `anthropicAdapter(client, opts?)` | `@anthropic-ai/sdk` | `claude-opus-5-5` |
+| `geminiAdapter(client, opts?)` | `@google/genai` (or legacy `@google/generative-ai`) | `gemini-3.6-flash` |
 | `ollamaAdapter(opts?)` | `openai` (via baseURL) | `llama3.2` |
+
+All adapters accept `{ model?, temperature?, maxTokens? }` defaults (`ollamaAdapter` also takes `baseUrl`).
+Per-call options and `AiModuleOptions` defaults take precedence over adapter defaults.
+
+Provider notes:
+
+- **OpenAI.** For reasoning models (`o1`, `o3`, `o4-mini`, `gpt-5` and later, including the default
+  `gpt-6-luna`), `openaiAdapter` sends `max_completion_tokens` instead of `max_tokens` and omits the
+  default temperature, which these models reject. Other models get `temperature: 0` unless set.
+  The model type is detected from its id; when the id does not tell (an Azure deployment, a proxy
+  alias), pass `reasoning: true` (or `false`) to `openaiAdapter` / `ollamaAdapter`.
+  A leading `<think>…</think>` block (thinking models on Ollama/vLLM) is stripped from the answer.
+- **Anthropic.** `temperature` is never sent: Claude 4.7+ models accept only the default sampling
+  settings, and `@anthropic-ai/sdk` >= 1.0.0 (API version `2026-10-21`) rejects it on every model.
+  The `temperature` option is deprecated and ignored. `max_tokens` defaults to 16000, since current
+  models think by default and thinking counts toward the limit. For `claude-fable-5-1`,
+  `claude-opus-5-5`, `claude-opus-5` and `claude-sonnet-5-5` the adapter enables Anthropic's
+  server-side refusal fallback (`fallbacks: "default"`), so a declined request is re-run on a
+  fallback model in the same call. It is skipped for Bedrock, Vertex and Foundry clients; turn it off
+  with `anthropicAdapter(client, { refusalFallback: false })`.
+- **Gemini.** `temperature` is sent only when set: Google recommends keeping Gemini 3 models at the
+  default temperature, as lower values can cause looping. `geminiAdapter` detects the SDK from the
+  client: `GoogleGenAI` (`@google/genai`) or the legacy `GoogleGenerativeAI` (`@google/generative-ai`).
+
+---
+
+## Migrating from 1.x
+
+2.0 requires Node.js 20 or later (Node 18 reached end of life; `@google/genai` needs Node 20). It
+keeps the public API (imports, options, signatures), but changes runtime behavior:
+
+**Errors that were not thrown before**
+
+- Adapters throw `AiResponseError` when the answer was truncated by the token limit, refused, or
+  blocked by a content filter. `chat()` used to return the partial or empty text in these cases and
+  now throws; `parse()` fails right away instead of retrying (see [Error handling](#error-handling)).
+- `parse()` no longer completes a JSON value that was cut off (`{"name":"John","tags":["a"`); the
+  attempt fails and is retried. Malformed but complete JSON is still repaired.
+- Provider errors with a 4xx status other than 408, 409 and 429 are no longer retried. The ones that
+  are retried now wait first (`retryDelay`, default 1000 ms, growing with each attempt); pass
+  `retryDelay: 0` (or `defaultRetryDelay: 0`) for the old immediate retries.
+- `retries` must be an integer >= 1; other values throw a `RangeError`.
+- `geminiAdapter` throws a `TypeError` when created with something that is not a Gemini client
+  instance (for example the class itself), instead of failing on the first request.
+
+**New defaults** (only matter if you do not set them yourself)
+
+| Adapter | 1.x | 2.0 |
+|---|---|---|
+| `openaiAdapter` model | `gpt-4o-mini` | `gpt-6-luna` |
+| `anthropicAdapter` model | `claude-haiku-4-5-20251001` | `claude-opus-5-5` |
+| `anthropicAdapter` `max_tokens` | 1024 | 16000 |
+| `geminiAdapter` model | `gemini-2.0-flash` (shut down) | `gemini-3.6-flash` |
+| Temperature | 0 | OpenAI non-reasoning models: 0. Reasoning models and Gemini: provider default. Anthropic: never sent. |
+
+The new default models cost more per token than the 1.x ones. To keep costs and behavior
+predictable, set `model` (and `maxTokens`) explicitly.
+
+**Other changes**
+
+- `anthropicAdapter` ignores `temperature` and enables the server-side refusal fallback on
+  supported models; pass `refusalFallback: false` to turn it off.
+- `geminiAdapter` accepts a `GoogleGenAI` client from `@google/genai`. The legacy
+  `@google/generative-ai` client keeps working.
+- CommonJS consumers get their own type declarations (`index.d.cts`).
 
 ---
 

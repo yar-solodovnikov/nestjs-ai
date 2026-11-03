@@ -64,4 +64,18 @@ describe('ollamaAdapter', () => {
       expect.objectContaining({ model: 'mistral' })
     )
   })
+
+  it('passes maxTokens from adapter options to the request', async () => {
+    const { ollamaAdapter } = await import('../src/adapters/ollama.adapter')
+    await ollamaAdapter({ maxTokens: 64 }).complete('test')
+    expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ max_tokens: 64 }))
+  })
+
+  it('passes the reasoning option through to the OpenAI adapter', async () => {
+    const { ollamaAdapter } = await import('../src/adapters/ollama.adapter')
+    await ollamaAdapter({ model: 'qwen3', reasoning: true, maxTokens: 64 }).complete('test')
+    const request = mockCreate.mock.calls[0]![0]
+    expect(request).toMatchObject({ model: 'qwen3', max_completion_tokens: 64 })
+    expect(request).not.toHaveProperty('temperature')
+  })
 })

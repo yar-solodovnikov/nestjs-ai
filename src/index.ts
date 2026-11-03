@@ -16,5 +16,7 @@ export type { OllamaAdapterOptions } from './adapters/ollama.adapter'
 export type { GeminiAdapterOptions } from './adapters/gemini.adapter'
 
 export { AiError } from './structured/retry-engine'
+export { AiResponseError } from './adapters/response-error'
+export type { AiResponseErrorReason } from './adapters/response-error'
 export { AI_SERVICE_TOKEN } from './ai.constants'
 export type { AiModuleAsyncOptions, AiModuleNamedAsyncOptions } from './ai.module'

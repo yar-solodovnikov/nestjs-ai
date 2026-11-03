@@ -4,7 +4,8 @@ import { AiService, type AiModuleOptions } from './ai.service'
 
 export interface AiModuleAsyncOptions extends Pick<ModuleMetadata, 'imports'> {
   inject?: FactoryProvider['inject']
-  useFactory: (...args: unknown[]) => AiModuleOptions | Promise<AiModuleOptions>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches Nest's FactoryProvider so typed factory params are accepted
+  useFactory: (...args: any[]) => AiModuleOptions | Promise<AiModuleOptions>
   /** When true, the module is registered globally and does not need to be imported in every feature module. */
   isGlobal?: boolean
 }
@@ -12,7 +13,8 @@ export interface AiModuleAsyncOptions extends Pick<ModuleMetadata, 'imports'> {
 /** Options for named instances (register/registerAsync). isGlobal has no meaning for named instances. */
 export interface AiModuleNamedAsyncOptions extends Pick<ModuleMetadata, 'imports'> {
   inject?: FactoryProvider['inject']
-  useFactory: (...args: unknown[]) => AiModuleOptions | Promise<AiModuleOptions>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches Nest's FactoryProvider so typed factory params are accepted
+  useFactory: (...args: any[]) => AiModuleOptions | Promise<AiModuleOptions>
 }
 
 @Module({})
@@ -54,8 +56,8 @@ export class AiModule {
    * Register a named AiService instance — useful for multiple providers in one app.
    *
    * @example
-   * AiModule.register('fast', { adapter: openaiAdapter(client, { model: 'gpt-4o-mini' }) })
-   * AiModule.register('smart', { adapter: openaiAdapter(client, { model: 'gpt-4o' }) })
+   * AiModule.register('fast', { adapter: openaiAdapter(client, { model: 'gpt-4.1-mini' }) })
+   * AiModule.register('smart', { adapter: openaiAdapter(client, { model: 'gpt-6-luna' }) })
    *
    * // Then inject by name:
    * @InjectAi('fast') private fast: AiService

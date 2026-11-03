@@ -153,3 +153,22 @@ describe('AiModule.registerAsync', () => {
     expect(mod.global).toBeFalsy()
   })
 })
+
+describe('AiModule async factories with typed dependencies', () => {
+  class FakeConfigService {
+    get(key: string): string { return key }
+  }
+
+  // Compile-time regression: typed factory params must be accepted (checked by `npm run typecheck`).
+  it('accepts a factory with typed parameters in forRootAsync and registerAsync', async () => {
+    const factory = (config: FakeConfigService) => ({
+      adapter: { complete: async () => config.get('ok') },
+    })
+    const root = AiModule.forRootAsync({ inject: [FakeConfigService], useFactory: factory })
+    const named = AiModule.registerAsync('typed', { inject: [FakeConfigService], useFactory: factory })
+    expect(root.providers).toBeDefined()
+    expect(named.providers).toBeDefined()
+    const options = await factory(new FakeConfigService())
+    expect(await options.adapter.complete()).toBe('ok')
+  })
+})

@@ -72,4 +72,48 @@ describe('AiService', () => {
     await service.parse({ schema: z.object({ value: z.number() }), prompt: 'test', retries: 3, onRetry })
     expect(onRetry).toHaveBeenCalledOnce()
   })
+
+  it('parse() uses defaultRetryDelay and lets a per-call retryDelay override it', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(Math, 'random').mockReturnValue(1)
+    try {
+      let calls = 0
+      const flaky: IAiAdapter = {
+        async complete() {
+          calls++
+          if (calls % 2 === 1) throw Object.assign(new Error('busy'), { status: 503 })
+          return '{"value":1}'
+        },
+      }
+      const service = new AiService({ adapter: flaky, defaultRetryDelay: 500 })
+      const first = service.parse({ schema: z.object({ value: z.number() }), prompt: 'test' })
+      await vi.advanceTimersByTimeAsync(499)
+      expect(calls).toBe(1)
+      await vi.advanceTimersByTimeAsync(1)
+      await first
+      expect(calls).toBe(2)
+
+      await service.parse({ schema: z.object({ value: z.number() }), prompt: 'test', retryDelay: 0 })
+      expect(calls).toBe(4)
+    } finally {
+      vi.restoreAllMocks()
+      vi.useRealTimers()
+    }
+  })
+
+  it('chat() reports request and successful response to the logger', async () => {
+    const logger = { onRequest: vi.fn(), onResponse: vi.fn() }
+    const service = new AiService({ adapter: makeAdapter(), logger, defaultModel: 'm' })
+    await service.chat('hello')
+    expect(logger.onRequest).toHaveBeenCalledWith(expect.objectContaining({ prompt: 'hello', attempt: 1, adapterOptions: { model: 'm' } }))
+    expect(logger.onResponse).toHaveBeenCalledWith(expect.objectContaining({ prompt: 'hello', success: true }))
+  })
+
+  it('chat() reports a failed response to the logger and rethrows', async () => {
+    const logger = { onResponse: vi.fn() }
+    const adapter: IAiAdapter = { async complete() { throw new Error('down') } }
+    const service = new AiService({ adapter, logger })
+    await expect(service.chat('hello')).rejects.toThrow('down')
+    expect(logger.onResponse).toHaveBeenCalledWith(expect.objectContaining({ success: false, error: 'down' }))
+  })
 })
