@@ -68,6 +68,28 @@ describe('openaiAdapter', () => {
     },
   )
 
+  it('throws a non-retryable AiResponseError when the answer was cut off (finish_reason length)', async () => {
+    const { create, client } = mockOpenAi()
+    create.mockResolvedValue({ choices: [{ finish_reason: 'length', message: { content: '{"items":[1,2' } }] })
+    const err = await openaiAdapter(client).complete('test').catch(e => e)
+    expect(err).toBeInstanceOf(AiResponseError)
+    expect(err).toMatchObject({ provider: 'openai', reason: 'truncated', retryable: false })
+  })
+
+  it('throws AiResponseError with the refusal text when the model refuses', async () => {
+    const { create, client } = mockOpenAi()
+    create.mockResolvedValue({ choices: [{ finish_reason: 'stop', message: { content: null, refusal: 'I cannot help with that.' } }] })
+    const err = await openaiAdapter(client).complete('test').catch(e => e)
+    expect(err).toMatchObject({ reason: 'refusal', detail: 'I cannot help with that.' })
+  })
+
+  it('throws AiResponseError when the content filter blocked the answer', async () => {
+    const { create, client } = mockOpenAi()
+    create.mockResolvedValue({ choices: [{ finish_reason: 'content_filter', message: { content: '' } }] })
+    const err = await openaiAdapter(client).complete('test').catch(e => e)
+    expect(err).toMatchObject({ reason: 'blocked', detail: 'content_filter' })
+  })
+
   it('uses maxTokens from adapter defaults when not overridden per call', async () => {
     const { create, client } = mockOpenAi()
     await openaiAdapter(client, { maxTokens: 50 }).complete('test')

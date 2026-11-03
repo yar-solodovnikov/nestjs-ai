@@ -1,4 +1,5 @@
 import type { IAiAdapter, AdapterCallOptions } from './adapter.interface'
+import { AiResponseError } from './response-error'
 
 const DEFAULT_MODEL = 'gpt-4o-mini'
 const DEFAULT_TEMPERATURE = 0
@@ -41,7 +42,21 @@ export function openaiAdapter(
       if (maxTokens !== undefined) request[isReasoningModel ? 'max_completion_tokens' : 'max_tokens'] = maxTokens
 
       const response = await client.chat.completions.create(request)
-      const content = response.choices[0]?.message?.content
+      const choice = response.choices[0]
+      const refusal: string | null | undefined = choice?.message?.refusal
+      if (refusal) {
+        throw new AiResponseError(`OpenAI declined the request: ${refusal}`, 'openai', 'refusal', refusal)
+      }
+      if (choice?.finish_reason === 'length') {
+        throw new AiResponseError(
+          'OpenAI response was cut off by the token limit; increase maxTokens',
+          'openai', 'truncated', 'length',
+        )
+      }
+      if (choice?.finish_reason === 'content_filter') {
+        throw new AiResponseError('OpenAI content filter blocked the response', 'openai', 'blocked', 'content_filter')
+      }
+      const content = choice?.message?.content
       if (!content) throw new Error('OpenAI returned an empty response')
       return content
     },
