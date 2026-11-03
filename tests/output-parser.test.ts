@@ -58,6 +58,27 @@ describe('parseJson', () => {
     expect(parseJson(`${fence}json\n${json}\n${fence}`)).toEqual({ code: `${fence}x${fence}` })
   })
 
+  it('picks the JSON value in a code block, not bracketed text before it', () => {
+    expect(parseJson(`${fence}json
+// note [x]
+{"a":1}
+${fence}`)).toEqual({ a: 1 })
+  })
+
+  it('ignores JSON in prose after the code block', () => {
+    expect(parseJson(`${fence}json
+{"a":1}
+${fence}
+For example {"a":2,"comment":"longer"}`)).toEqual({ a: 1 })
+  })
+
+  it('reads a fenced primitive value up to the closing fence', () => {
+    expect(parseJson(`${fence}
+42
+${fence}
+See {"x":1}`)).toBe(42)
+  })
+
   it('parses a fenced primitive value', () => {
     expect(parseJson(`${fence}\n"hello"\n${fence}`)).toBe('hello')
     expect(parseJson(`${fence}true${fence}`)).toBe(true)

@@ -33,22 +33,13 @@ export function parseJson(raw: string): unknown {
 function extractJson(text: string): string {
   const fence = FENCE_OPEN_RE.exec(text)
   const body = fence ? text.slice(fence.index + fence[0].length) : text
-  const { segments, unclosed } = scan(body, false)
+  const { segments, end, unclosed } = scan(body, Boolean(fence))
 
   // Repairing a cut-off value would silently return partial data (or a nested fragment of it).
   if (unclosed) throw new Error('The response contains an incomplete JSON value (the output may have been cut off)')
-  if (segments.length > 0) {
-    // Inside a code block the first value is the payload; in free text pick the most plausible one.
-    if (fence) return segments[0]!
-    return longest(segments.filter(isStrictJson)) ?? longest(segments)!
-  }
+  if (segments.length > 0) return longest(segments.filter(isStrictJson)) ?? longest(segments)!
   // No object or array: a primitive value or plain text, left for jsonrepair.
-  return (fence ? stripClosingFence(body) : body).trim()
-}
-
-function stripClosingFence(text: string): string {
-  const end = text.lastIndexOf(FENCE)
-  return end === -1 ? text : text.slice(0, end)
+  return body.slice(0, end).trim()
 }
 
 /**
