@@ -77,3 +77,64 @@ describe('geminiAdapter', () => {
     expect(client.getGenerativeModel.mock.calls[0]![0].generationConfig.temperature).toBe(0.4)
   })
 })
+
+function genAiClientReturning(response: Record<string, unknown>) {
+  return { models: { generateContent: vi.fn().mockResolvedValue(response) } }
+}
+
+describe('geminiAdapter with @google/genai', () => {
+  it('calls models.generateContent and returns the text property', async () => {
+    const client = genAiClientReturning({ candidates: [{ finishReason: 'STOP' }], text: 'hello' })
+    expect(await geminiAdapter(client).complete('test prompt')).toBe('hello')
+    expect(client.models.generateContent).toHaveBeenCalledWith({
+      model: 'gemini-3.6-flash',
+      contents: 'test prompt',
+      config: {},
+    })
+  })
+
+  it('maps model, temperature and maxTokens into the request config', async () => {
+    const client = genAiClientReturning({ candidates: [{ finishReason: 'STOP' }], text: 'ok' })
+    await geminiAdapter(client, { model: 'gemini-3.6-pro', maxTokens: 50 }).complete('test', { temperature: 0.4 })
+    expect(client.models.generateContent).toHaveBeenCalledWith({
+      model: 'gemini-3.6-pro',
+      contents: 'test',
+      config: { temperature: 0.4, maxOutputTokens: 50 },
+    })
+  })
+
+  it('throws if the response has no text', async () => {
+    const client = genAiClientReturning({ candidates: [{ finishReason: 'STOP' }], text: undefined })
+    await expect(geminiAdapter(client).complete('test')).rejects.toThrow('empty response')
+  })
+
+  it('throws a non-retryable AiResponseError when the answer hit the token limit', async () => {
+    const client = genAiClientReturning({ candidates: [{ finishReason: 'MAX_TOKENS' }], text: '{"a":[1,' })
+    const err = await geminiAdapter(client).complete('test').catch(e => e)
+    expect(err).toBeInstanceOf(AiResponseError)
+    expect(err).toMatchObject({ provider: 'gemini', reason: 'truncated', retryable: false })
+  })
+
+  it('reports a blocked prompt', async () => {
+    const client = genAiClientReturning({ promptFeedback: { blockReason: 'PROHIBITED_CONTENT' }, text: undefined })
+    const err = await geminiAdapter(client).complete('test').catch(e => e)
+    expect(err).toMatchObject({ reason: 'blocked', detail: 'PROHIBITED_CONTENT' })
+  })
+
+  it('reports a blocked response', async () => {
+    const client = genAiClientReturning({ candidates: [{ finishReason: 'SAFETY' }], text: undefined })
+    const err = await geminiAdapter(client).complete('test').catch(e => e)
+    expect(err).toMatchObject({ reason: 'blocked', detail: 'SAFETY' })
+  })
+})
+
+describe('geminiAdapter client detection', () => {
+  it('rejects an object that is not a Gemini client', () => {
+    expect(() => geminiAdapter({})).toThrow(TypeError)
+  })
+
+  it('rejects the class instead of an instance', () => {
+    class GoogleGenAI {}
+    expect(() => geminiAdapter(GoogleGenAI)).toThrow('client instance')
+  })
+})
