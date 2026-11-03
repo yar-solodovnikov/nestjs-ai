@@ -56,8 +56,8 @@ export class AiModule {
    * Register a named AiService instance — useful for multiple providers in one app.
    *
    * @example
-   * AiModule.register('fast', { adapter: openaiAdapter(client, { model: 'gpt-4o-mini' }) })
-   * AiModule.register('smart', { adapter: openaiAdapter(client, { model: 'gpt-4o' }) })
+   * AiModule.register('fast', { adapter: openaiAdapter(client, { model: 'gpt-4.1-mini' }) })
+   * AiModule.register('smart', { adapter: openaiAdapter(client, { model: 'gpt-6-luna' }) })
    *
    * // Then inject by name:
    * @InjectAi('fast') private fast: AiService

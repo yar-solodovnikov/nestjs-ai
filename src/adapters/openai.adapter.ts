@@ -1,7 +1,7 @@
 import type { IAiAdapter, AdapterCallOptions } from './adapter.interface'
 import { AiResponseError } from './response-error'
 
-const DEFAULT_MODEL = 'gpt-4o-mini'
+const DEFAULT_MODEL = 'gpt-6-luna'
 const DEFAULT_TEMPERATURE = 0
 /**
  * Reasoning models (o1, o3, o4-mini, gpt-5 and later generations such as gpt-6-luna) reject

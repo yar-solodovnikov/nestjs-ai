@@ -50,6 +50,14 @@ describe('openaiAdapter', () => {
     expect(request).not.toHaveProperty('max_completion_tokens')
   })
 
+  it('defaults to gpt-6-luna as a reasoning model', async () => {
+    const { create, client } = mockOpenAi()
+    await openaiAdapter(client).complete('test', { maxTokens: 100 })
+    const request = create.mock.calls[0]![0]
+    expect(request).toMatchObject({ model: 'gpt-6-luna', max_completion_tokens: 100 })
+    expect(request).not.toHaveProperty('temperature')
+  })
+
   it('omits max_tokens when maxTokens is not set', async () => {
     const { create, client } = mockOpenAi()
     await openaiAdapter(client).complete('test')
@@ -111,9 +119,9 @@ describe('openaiAdapter', () => {
 
   it('uses maxTokens from adapter defaults when not overridden per call', async () => {
     const { create, client } = mockOpenAi()
-    await openaiAdapter(client, { maxTokens: 50 }).complete('test')
+    await openaiAdapter(client, { model: 'gpt-4o', maxTokens: 50 }).complete('test')
     expect(create.mock.calls[0]![0]).toMatchObject({ max_tokens: 50 })
-    await openaiAdapter(client, { maxTokens: 50 }).complete('test', { maxTokens: 10 })
+    await openaiAdapter(client, { model: 'gpt-4o', maxTokens: 50 }).complete('test', { maxTokens: 10 })
     expect(create.mock.calls[1]![0]).toMatchObject({ max_tokens: 10 })
   })
 
