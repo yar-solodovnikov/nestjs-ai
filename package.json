@@ -30,7 +30,8 @@
     "test:watch": "vitest",
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.test.json",
-    "test:coverage": "vitest run --coverage --coverage.reporter=text --coverage.include=\"src/**\""
+    "test:coverage": "vitest run --coverage --coverage.reporter=text --coverage.include=\"src/**\"",
+    "test:live": "vitest run --config vitest.live.config.ts"
   },
   "keywords": [
     "nestjs",
