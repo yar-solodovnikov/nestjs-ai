@@ -86,7 +86,7 @@ export async function runWithRetry<T extends ZodTypeAny>(
       return result.data
     }
 
-    lastZodError = result.error.errors
+    lastZodError = result.error.issues
       .map(e => `${e.path.join('.')}: ${e.message}`)
       .join('; ')
 
