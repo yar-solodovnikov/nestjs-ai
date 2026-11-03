@@ -1,6 +1,7 @@
 ﻿import { describe, it, expect, vi } from 'vitest'
 import { z } from 'zod'
 import { runWithRetry, AiError } from '../src/structured/retry-engine'
+import { AiResponseError } from '../src/adapters/response-error'
 import type { IAiAdapter } from '../src/adapters/adapter.interface'
 import type { AiLogger } from '../src/ai.logger'
 
@@ -238,6 +239,17 @@ describe('runWithRetry adapter error handling', () => {
     expect(err).toBeInstanceOf(AiError)
     expect(err.attempts).toBe(1)
     expect((err.cause as ApiError).status).toBe(status)
+  })
+
+  it('does not retry an AiResponseError (truncated/refused answer)', async () => {
+    const cause = new AiResponseError('cut off', 'test', 'truncated', 'max_tokens')
+    const adapter = failingAdapter(cause)
+    const err: AiError = await runWithRetry({ adapter, schema: UserSchema, prompt: 'test', retries: 3 })
+      .catch(e => e)
+    expect(adapter.calls).toBe(1)
+    expect(err.cause).toBe(cause)
+    expect(cause).toBeInstanceOf(AiResponseError)
+    expect(cause.retryable).toBe(false)
   })
 
   it.each([408, 409, 429, 500, 503])('retries retryable status %i', async status => {

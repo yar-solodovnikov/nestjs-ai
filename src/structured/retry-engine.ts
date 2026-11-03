@@ -44,8 +44,10 @@ const RETRYABLE_CLIENT_STATUSES = new Set([HTTP_REQUEST_TIMEOUT, HTTP_CONFLICT, 
  * Client errors (bad API key, unknown model, invalid request) will fail the same way on every
  * attempt, so retrying them only wastes time and tokens. Rate limits and server errors are retried.
  * Works with OpenAI, Anthropic and Gemini SDK errors, which all expose an HTTP `status`.
+ * Errors that set `retryable: false` (e.g. AiResponseError for truncated or refused answers) are not retried.
  */
 function isRetryableAdapterError(error: unknown): boolean {
+  if ((error as { retryable?: unknown } | null)?.retryable === false) return false
   const status = (error as { status?: unknown } | null)?.status
   if (typeof status !== 'number') return true
   if (status >= HTTP_CLIENT_ERROR_MIN && status < HTTP_SERVER_ERROR_MIN) return RETRYABLE_CLIENT_STATUSES.has(status)
